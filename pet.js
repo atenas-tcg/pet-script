@@ -1,4 +1,3 @@
-<script>
 (function () {
   if (window.__petLoaded) return
   window.__petLoaded = true
@@ -100,7 +99,6 @@
       #pet-float.sliding .idle-img{opacity:0}
       #pet-float.dragging .grab-img,
       #pet-float.sliding .grab-img{opacity:1}
-
       @keyframes petIdleHop{
         0%,100%{transform:translateY(0) scaleX(1) scaleY(1)}
         40%{transform:translateY(-10px) scaleX(.98) scaleY(1.02)}
@@ -181,9 +179,10 @@
       hopPhase: Math.random() * Math.PI * 2,
       hopSpeed: 0.11,
       hopRange: 18,
-      chatTargetX: null,
-      chatTargetY: null,
-      chatOpen: false
+      targetX: 0,
+      targetY: 0,
+      chatDetected: false,
+      nearChat: false
     }
 
     function clamp(v, min, max) {
@@ -226,12 +225,7 @@
       const sr = stage.getBoundingClientRect()
       return [...stage.querySelectorAll('.obstacle')].map(el => {
         const r = el.getBoundingClientRect()
-        return {
-          x: r.left - sr.left,
-          y: r.top - sr.top,
-          w: r.width,
-          h: r.height
-        }
+        return { x: r.left - sr.left, y: r.top - sr.top, w: r.width, h: r.height }
       })
     }
 
@@ -256,13 +250,11 @@
 
       for (const o of obs) {
         if (!hit(box, o)) continue
-
         const l = box.x + box.w - o.x
         const r = o.x + o.w - box.x
         const t = box.y + box.h - o.y
         const b = o.y + o.h - box.y
         const m = Math.min(l, r, t, b)
-
         if (m === l) { box.x = o.x - box.w; hitX = true }
         else if (m === r) { box.x = o.x + o.w; hitX = true }
         else if (m === t) { box.y = o.y - box.h; hitY = true }
@@ -276,7 +268,6 @@
       e.preventDefault()
       const p = point(e)
       const r = pet.getBoundingClientRect()
-
       state.drag = true
       state.offsetX = p.x - r.left
       state.offsetY = p.y - r.top
@@ -287,14 +278,12 @@
       state.lastMoveTime = performance.now()
       state.vx = 0
       state.vy = 0
-
       setMode('drag')
     }
 
     function moveDrag(e) {
       if (!state.drag) return
       e.preventDefault()
-
       const p = point(e)
       const sr = stage.getBoundingClientRect()
       const now = performance.now()
@@ -302,7 +291,6 @@
 
       state.pointerVX = (p.x - state.lastPointerX) / dt * 16
       state.pointerVY = (p.y - state.lastPointerY) / dt * 16
-
       state.lastPointerX = p.x
       state.lastPointerY = p.y
       state.lastMoveTime = now
@@ -331,11 +319,9 @@
       const floor = ground()
       state.y = floor
       state.hopPhase += state.hopSpeed
-
       const offset = Math.sin(state.hopPhase) * state.hopRange
       const nextX = state.hopBaseX + offset
       const s = solve(nextX, floor)
-
       state.x = s.x
       state.y = floor
 
@@ -353,9 +339,7 @@
         }
       }
 
-      if (Math.abs(Math.sin(state.hopPhase)) < 0.03) {
-        state.hopBaseX = state.x
-      }
+      if (Math.abs(Math.sin(state.hopPhase)) < 0.03) state.hopBaseX = state.x
     }
 
     function slideStep() {
@@ -363,7 +347,7 @@
       state.vx *= 0.992
       state.vy *= 0.996
 
-      let sx = solve(state.x + state.vx, state.y)
+      const sx = solve(state.x + state.vx, state.y)
       state.x = sx.x
       if (sx.hitX) {
         state.vx *= -0.68
@@ -372,7 +356,7 @@
         face()
       }
 
-      let sy = solve(state.x, state.y + state.vy)
+      const sy = solve(state.x, state.y + state.vy)
       state.y = sy.y
       if (sy.hitY) {
         if (state.vy > 0) {
@@ -393,117 +377,158 @@
       }
     }
 
-    function findChatElement() {
-      const selectors = [
-        '#wix-chat-popup',
-        '#WIX_CHAT_CONTAINER',
-        '[data-hook="chat-widget"]',
-        '[aria-label*="chat" i]',
-        '[aria-label*="Wix Chat" i]',
-        '[title*="chat" i]',
-        'iframe[title*="chat" i]',
-        'iframe[aria-label*="chat" i]'
-      ]
-
-      for (const selector of selectors) {
-        const el = document.querySelector(selector)
-        if (el) return el
-      }
-
-      const all = [...document.querySelectorAll('div,button,iframe')]
-      return all.find(el => {
-        const t = `${el.id} ${el.className} ${el.getAttribute('aria-label') || ''} ${el.getAttribute('title') || ''}`.toLowerCase()
-        return t.includes('wix chat') || t.includes('chat')
-      }) || null
+    function isVisible(el) {
+      if (!el) return false
+      const r = el.getBoundingClientRect()
+      const s = getComputedStyle(el)
+      return r.width > 20 && r.height > 20 && s.display !== 'none' && s.visibility !== 'hidden' && s.opacity !== '0'
     }
 
-    function readChatTarget() {
+    function scoreChatElement(el) {
+      if (!isVisible(el)) return -1
+      const r = el.getBoundingClientRect()
+      let score = 0
+      const txt = `${el.id || ''} ${el.className || ''} ${el.getAttribute('aria-label') || ''} ${el.getAttribute('title') || ''} ${el.innerText || ''}`.toLowerCase()
+
+      if (txt.includes('wix chat')) score += 120
+      if (txt.includes('chat')) score += 70
+      if (txt.includes('message')) score += 25
+      if (el.tagName === 'IFRAME') score += 30
+      if (r.right > window.innerWidth * 0.55) score += 25
+      if (r.bottom > window.innerHeight * 0.55) score += 25
+      if (r.width >= 40 && r.width <= 420) score += 15
+      if (r.height >= 40 && r.height <= 700) score += 15
+
+      return score
+    }
+
+    function findChatElement() {
+      const selectors = [
+        'iframe[title*="chat" i]',
+        'iframe[aria-label*="chat" i]',
+        '[aria-label*="wix chat" i]',
+        '[aria-label*="chat" i]',
+        '[title*="wix chat" i]',
+        '[title*="chat" i]',
+        '[id*="chat" i]',
+        '[class*="chat" i]',
+        'button',
+        'div',
+        'iframe'
+      ]
+
+      let best = null
+      let bestScore = -1
+
+      for (const selector of selectors) {
+        const list = document.querySelectorAll(selector)
+        for (const el of list) {
+          const score = scoreChatElement(el)
+          if (score > bestScore) {
+            best = el
+            bestScore = score
+          }
+        }
+      }
+
+      if (bestScore >= 40) return best
+
+      const fallback = [...document.querySelectorAll('button,div,iframe')].filter(isVisible)
+      fallback.sort((a, b) => {
+        const ar = a.getBoundingClientRect()
+        const br = b.getBoundingClientRect()
+        const as = (ar.right + ar.bottom)
+        const bs = (br.right + br.bottom)
+        return bs - as
+      })
+
+      return fallback[0] || null
+    }
+
+    function getChatRect() {
       const el = findChatElement()
       if (!el) return null
       const r = el.getBoundingClientRect()
-      return {
-        x: clamp(r.left + r.width * 0.5 - state.w * 0.5, 0, Math.max(0, window.innerWidth - state.w)),
-        y: clamp(r.top + r.height - state.h, 0, Math.max(0, window.innerHeight - state.h)),
-        width: r.width,
-        height: r.height,
-        visible: r.width > 20 && r.height > 20
-      }
+      if (r.width < 20 || r.height < 20) return null
+      return r
     }
 
     function isChatOpen() {
-      const t = readChatTarget()
-      if (!t || !t.visible) return false
-      return t.width > 140 || t.height > 140
+      const r = getChatRect()
+      if (!r) return false
+      return r.width > 180 || r.height > 180
+    }
+
+    function getChatTarget() {
+      const r = getChatRect()
+      if (r) {
+        const x = clamp(r.left + r.width * 0.5 - state.w * 0.5, 0, Math.max(0, window.innerWidth - state.w))
+        const y = ground()
+        return { x, y, found: true }
+      }
+
+      const x = Math.max(0, window.innerWidth - state.w - 24)
+      const y = ground()
+      return { x, y, found: false }
     }
 
     function goToChat() {
-      const t = readChatTarget()
-      if (!t) return
-      state.chatTargetX = t.x
-      state.chatTargetY = t.y
-      state.vx = 0
-      state.vy = 0
+      const t = getChatTarget()
+      state.targetX = t.x
+      state.targetY = t.y
+      state.chatDetected = t.found
+      state.nearChat = false
       setMode('chat')
     }
 
     function chatStep() {
-      const t = readChatTarget()
-      if (!t) {
-        state.chatOpen = false
-        state.hopBaseX = state.x
-        state.hopPhase = 0
-        setMode('idle')
-        return
-      }
+      const t = getChatTarget()
+      state.targetX = t.x
+      state.targetY = t.y
+      state.chatDetected = t.found
 
-      state.chatTargetX = t.x
-      state.chatTargetY = t.y
+      const dx = state.targetX - state.x
+      const arrived = Math.abs(dx) < 6
 
-      const dx = state.chatTargetX - state.x
-      const dy = ground() - state.y
-
-      if (Math.abs(dx) <= 4 && Math.abs(dy) <= 4) {
-        state.x = state.chatTargetX
+      if (arrived) {
+        state.x = state.targetX
         state.y = ground()
-        applyPos()
+        state.nearChat = true
+        state.facing = 1
+        face()
         return
       }
 
+      state.nearChat = false
       state.facing = dx < 0 ? -1 : 1
       face()
 
-      const stepX = clamp(dx * 0.12, -14, 14)
+      const stepX = clamp(dx * 0.14, -16, 16)
       const hop = Math.sin(performance.now() * 0.02) * 10
       const s = solve(state.x + stepX, ground() + hop)
-
       state.x = s.x
       state.y = s.y
     }
 
     function watchChat() {
-      let last = false
+      let lastOpen = false
 
       function scan() {
         const open = isChatOpen()
-
-        if (open && !last && !state.drag) {
-          state.chatOpen = true
-          goToChat()
-        }
-
-        if (!open && last && state.mode === 'chat') {
-          state.chatOpen = false
+        if (open && !lastOpen && !state.drag) goToChat()
+        if (!open && lastOpen && state.mode === 'chat') {
           state.hopBaseX = state.x
           state.hopPhase = 0
           setMode('idle')
         }
-
-        last = open
+        lastOpen = open
       }
 
       const observer = new MutationObserver(scan)
       observer.observe(document.body, { childList: true, subtree: true, attributes: true })
-      setInterval(scan, 500)
+      window.addEventListener('click', function () { setTimeout(scan, 200) })
+      window.addEventListener('resize', scan)
+      setInterval(scan, 700)
       scan()
     }
 
@@ -551,4 +576,3 @@
     boot()
   }
 })()
-</script>
