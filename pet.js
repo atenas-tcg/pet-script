@@ -1,4 +1,4 @@
-function initFloatingPet() { => {
+window.initFloatingPet = function() { => {
   if (window.__petLoaded) return
   window.__petLoaded = true
 
