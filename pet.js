@@ -7,7 +7,8 @@
 
     const style = document.createElement('style')
     style.textContent = `
-      #pet-stage,#pet-stage *{
+      #pet-stage,
+      #pet-stage *{
         box-sizing:border-box;
         user-select:none;
         -webkit-user-select:none;
@@ -23,6 +24,13 @@
         pointer-events:none;
         z-index:2147483646;
         background:transparent;
+      }
+      #pet-stage .obstacle{
+        position:absolute;
+        border-radius:18px;
+        background:rgba(90,70,130,.12);
+        border:2px dashed rgba(90,70,130,.25);
+        pointer-events:none;
       }
       #pet-float{
         position:absolute;
@@ -47,8 +55,6 @@
       #pet-float:hover .wrap{animation:petIdleHopHover .65s ease-in-out infinite}
       #pet-float.sliding .wrap{animation:petSlideFloat .18s linear infinite}
       #pet-float.chatting .wrap{animation:petChatHop .42s linear infinite}
-      #pet-float.hiding .wrap{animation:none}
-      #pet-float.peeking .wrap{animation:petPeekBob 1.3s ease-in-out infinite}
       #pet-float.dragging .wrap{
         animation:none;
         transform:rotate(-5deg) scale(1.02);
@@ -68,8 +74,6 @@
       #pet-float:hover .shadow{animation:petShadowHover .65s ease-in-out infinite}
       #pet-float.sliding .shadow{animation:petShadowSlide .18s linear infinite}
       #pet-float.chatting .shadow{animation:petShadowChat .42s linear infinite}
-      #pet-float.hiding .shadow{animation:none;opacity:.05;transform:translateX(-50%) scale(.62)}
-      #pet-float.peeking .shadow{animation:petShadowPeek 1.3s ease-in-out infinite}
       #pet-float.dragging .shadow{
         animation:none;
         opacity:.08;
@@ -92,16 +96,9 @@
       #pet-float .idle-img{opacity:1}
       #pet-float .grab-img{opacity:0}
       #pet-float.dragging .idle-img,
-      #pet-float.sliding .idle-img,
-      #pet-float.chatting .idle-img{opacity:0}
+      #pet-float.sliding .idle-img{opacity:0}
       #pet-float.dragging .grab-img,
-      #pet-float.sliding .grab-img,
-      #pet-float.chatting .grab-img{opacity:1}
-      #pet-float.hiding .idle-img,
-      #pet-float.peeking .idle-img{opacity:1}
-      #pet-float.hiding .grab-img,
-      #pet-float.peeking .grab-img{opacity:0}
-
+      #pet-float.sliding .grab-img{opacity:1}
       @keyframes petIdleHop{
         0%,100%{transform:translateY(0) scaleX(1) scaleY(1)}
         40%{transform:translateY(-10px) scaleX(.98) scaleY(1.02)}
@@ -122,10 +119,6 @@
         0%,100%{transform:translateY(0)}
         50%{transform:translateY(-12px)}
       }
-      @keyframes petPeekBob{
-        0%,100%{transform:translateY(0)}
-        50%{transform:translateY(-5px)}
-      }
       @keyframes petShadowIdle{
         0%,100%{transform:translateX(-50%) scale(1);opacity:.14}
         50%{transform:translateX(-50%) scale(.8);opacity:.07}
@@ -142,16 +135,15 @@
         0%,100%{transform:translateX(-50%) scale(.9);opacity:.1}
         50%{transform:translateX(-50%) scale(.7);opacity:.05}
       }
-      @keyframes petShadowPeek{
-        0%,100%{transform:translateX(-50%) scale(.68);opacity:.06}
-        50%{transform:translateX(-50%) scale(.6);opacity:.04}
-      }
     `
     document.head.appendChild(style)
 
     const stage = document.createElement('div')
     stage.id = 'pet-stage'
     stage.innerHTML = `
+      <div class="obstacle" style="left:14%; top:72%; width:120px; height:34px;"></div>
+      <div class="obstacle" style="left:44%; top:68%; width:150px; height:38px;"></div>
+      <div class="obstacle" style="right:12%; top:72%; width:110px; height:34px;"></div>
       <div id="pet-float">
         <div class="shadow"></div>
         <div class="wrap">
@@ -188,13 +180,9 @@
       hopSpeed: 0.11,
       hopRange: 18,
       targetX: 0,
-      hideAnchorX: 0,
-      hideAnchorY: 0,
-      hideOffset: 58,
-      peekAmount: 26,
-      peekTimer: 0,
-      peekDuration: 0,
-      nextPeekAt: 0
+      targetY: 0,
+      chatDetected: false,
+      nearChat: false
     }
 
     function clamp(v, min, max) {
@@ -207,8 +195,12 @@
       return { x: e.clientX, y: e.clientY }
     }
 
+    function stageSize() {
+      return { w: stage.clientWidth, h: stage.clientHeight }
+    }
+
     function ground() {
-      return Math.max(0, window.innerHeight - state.h)
+      return Math.max(0, stage.clientHeight - state.h)
     }
 
     function applyPos() {
@@ -223,21 +215,53 @@
 
     function setMode(mode) {
       state.mode = mode
-      pet.classList.remove('sliding', 'dragging', 'chatting', 'hiding', 'peeking')
+      pet.classList.remove('sliding', 'dragging', 'chatting')
       if (mode === 'slide') pet.classList.add('sliding')
       if (mode === 'drag') pet.classList.add('dragging')
       if (mode === 'chat') pet.classList.add('chatting')
-      if (mode === 'hide') pet.classList.add('hiding')
-      if (mode === 'peek') pet.classList.add('peeking')
+    }
+
+    function getObstacles() {
+      const sr = stage.getBoundingClientRect()
+      return [...stage.querySelectorAll('.obstacle')].map(el => {
+        const r = el.getBoundingClientRect()
+        return { x: r.left - sr.left, y: r.top - sr.top, w: r.width, h: r.height }
+      })
+    }
+
+    function hit(a, b) {
+      return a.x < b.x + b.w &&
+             a.x + a.w > b.x &&
+             a.y < b.y + b.h &&
+             a.y + a.h > b.y
     }
 
     function solve(nx, ny) {
-      return {
-        x: clamp(nx, 0, Math.max(0, window.innerWidth - state.w)),
-        y: clamp(ny, 0, Math.max(0, window.innerHeight - state.h)),
-        hitX: nx < 0 || nx > Math.max(0, window.innerWidth - state.w),
-        hitY: ny < 0 || ny > Math.max(0, window.innerHeight - state.h)
+      const box = { x: nx, y: ny, w: state.w, h: state.h }
+      const size = stageSize()
+      const obs = getObstacles()
+      let hitX = false
+      let hitY = false
+
+      if (box.x < 0) { box.x = 0; hitX = true }
+      if (box.y < 0) { box.y = 0; hitY = true }
+      if (box.x + box.w > size.w) { box.x = size.w - box.w; hitX = true }
+      if (box.y + box.h > size.h) { box.y = size.h - box.h; hitY = true }
+
+      for (const o of obs) {
+        if (!hit(box, o)) continue
+        const l = box.x + box.w - o.x
+        const r = o.x + o.w - box.x
+        const t = box.y + box.h - o.y
+        const b = o.y + o.h - box.y
+        const m = Math.min(l, r, t, b)
+        if (m === l) { box.x = o.x - box.w; hitX = true }
+        else if (m === r) { box.x = o.x + o.w; hitX = true }
+        else if (m === t) { box.y = o.y - box.h; hitY = true }
+        else { box.y = o.y + o.h; hitY = true }
       }
+
+      return { x: box.x, y: box.y, hitX, hitY }
     }
 
     function startDrag(e) {
@@ -261,6 +285,7 @@
       if (!state.drag) return
       e.preventDefault()
       const p = point(e)
+      const sr = stage.getBoundingClientRect()
       const now = performance.now()
       const dt = Math.max(8, now - state.lastMoveTime)
 
@@ -270,8 +295,8 @@
       state.lastPointerY = p.y
       state.lastMoveTime = now
 
-      const nx = p.x - state.offsetX
-      const ny = p.y - state.offsetY
+      const nx = p.x - sr.left - state.offsetX
+      const ny = p.y - sr.top - state.offsetY
       const s = solve(nx, ny)
 
       state.x = s.x
@@ -322,7 +347,7 @@
       state.vx *= 0.992
       state.vy *= 0.996
 
-      let sx = solve(state.x + state.vx, state.y)
+      const sx = solve(state.x + state.vx, state.y)
       state.x = sx.x
       if (sx.hitX) {
         state.vx *= -0.68
@@ -331,7 +356,7 @@
         face()
       }
 
-      let sy = solve(state.x, state.y + state.vy)
+      const sy = solve(state.x, state.y + state.vy)
       state.y = sy.y
       if (sy.hitY) {
         if (state.vy > 0) {
@@ -359,43 +384,34 @@
       return r.width > 20 && r.height > 20 && s.display !== 'none' && s.visibility !== 'hidden' && s.opacity !== '0'
     }
 
-    function safeQuery(selector) {
-      try {
-        return Array.from(document.querySelectorAll(selector))
-      } catch (e) {
-        return []
-      }
-    }
-
     function scoreChatElement(el) {
       if (!isVisible(el)) return -1
       const r = el.getBoundingClientRect()
-      const text = [
-        el.id || '',
-        typeof el.className === 'string' ? el.className : '',
-        el.getAttribute('aria-label') || '',
-        el.getAttribute('title') || '',
-        el.innerText || ''
-      ].join(' ').toLowerCase()
-
       let score = 0
-      if (text.includes('wix chat')) score += 120
-      if (text.includes('chat')) score += 70
-      if (text.includes('message')) score += 20
-      if (el.tagName === 'IFRAME') score += 20
-      if (r.right > window.innerWidth * 0.55) score += 20
-      if (r.bottom > window.innerHeight * 0.55) score += 20
+      const txt = `${el.id || ''} ${el.className || ''} ${el.getAttribute('aria-label') || ''} ${el.getAttribute('title') || ''} ${el.innerText || ''}`.toLowerCase()
+
+      if (txt.includes('wix chat')) score += 120
+      if (txt.includes('chat')) score += 70
+      if (txt.includes('message')) score += 25
+      if (el.tagName === 'IFRAME') score += 30
+      if (r.right > window.innerWidth * 0.55) score += 25
+      if (r.bottom > window.innerHeight * 0.55) score += 25
+      if (r.width >= 40 && r.width <= 420) score += 15
+      if (r.height >= 40 && r.height <= 700) score += 15
+
       return score
     }
 
     function findChatElement() {
       const selectors = [
-        'iframe[title*="chat"]',
-        'iframe[aria-label*="chat"]',
-        '[aria-label*="chat"]',
-        '[title*="chat"]',
-        '[id*="chat"]',
-        '[class*="chat"]',
+        'iframe[title*="chat" i]',
+        'iframe[aria-label*="chat" i]',
+        '[aria-label*="wix chat" i]',
+        '[aria-label*="chat" i]',
+        '[title*="wix chat" i]',
+        '[title*="chat" i]',
+        '[id*="chat" i]',
+        '[class*="chat" i]',
         'button',
         'div',
         'iframe'
@@ -404,23 +420,26 @@
       let best = null
       let bestScore = -1
 
-      selectors.forEach(selector => {
-        safeQuery(selector).forEach(el => {
+      for (const selector of selectors) {
+        const list = document.querySelectorAll(selector)
+        for (const el of list) {
           const score = scoreChatElement(el)
           if (score > bestScore) {
             best = el
             bestScore = score
           }
-        })
-      })
+        }
+      }
 
-      if (bestScore >= 35) return best
+      if (bestScore >= 40) return best
 
-      const fallback = safeQuery('button,div,iframe').filter(isVisible)
+      const fallback = [...document.querySelectorAll('button,div,iframe')].filter(isVisible)
       fallback.sort((a, b) => {
         const ar = a.getBoundingClientRect()
         const br = b.getBoundingClientRect()
-        return (br.right + br.bottom) - (ar.right + ar.bottom)
+        const as = (ar.right + ar.bottom)
+        const bs = (br.right + br.bottom)
+        return bs - as
       })
 
       return fallback[0] || null
@@ -443,54 +462,44 @@
     function getChatTarget() {
       const r = getChatRect()
       if (r) {
-        return {
-          x: clamp(r.left + r.width * 0.5 - state.w * 0.5, 0, Math.max(0, window.innerWidth - state.w)),
-          rect: r
-        }
+        const x = clamp(r.left + r.width * 0.5 - state.w * 0.5, 0, Math.max(0, window.innerWidth - state.w))
+        const y = ground()
+        return { x, y, found: true }
       }
 
-      return {
-        x: Math.max(0, window.innerWidth - state.w - 24),
-        rect: null
-      }
-    }
-
-    function beginHideMode() {
-      const t = getChatTarget()
-      const anchorX = t.rect
-        ? clamp(t.rect.left + t.rect.width - state.w + 22, 0, Math.max(0, window.innerWidth - state.w))
-        : t.x
-
-      state.hideAnchorX = anchorX
-      state.hideAnchorY = ground()
-      state.peekTimer = 0
-      state.peekDuration = 0
-      state.nextPeekAt = performance.now() + 800 + Math.random() * 1400
-      state.facing = 1
-      face()
-      state.x = anchorX + state.hideOffset
-      state.y = state.hideAnchorY
-      setMode('hide')
+      const x = Math.max(0, window.innerWidth - state.w - 24)
+      const y = ground()
+      return { x, y, found: false }
     }
 
     function goToChat() {
       const t = getChatTarget()
       state.targetX = t.x
+      state.targetY = t.y
+      state.chatDetected = t.found
+      state.nearChat = false
       setMode('chat')
     }
 
     function chatStep() {
       const t = getChatTarget()
       state.targetX = t.x
-      const dx = state.targetX - state.x
+      state.targetY = t.y
+      state.chatDetected = t.found
 
-      if (Math.abs(dx) < 6) {
+      const dx = state.targetX - state.x
+      const arrived = Math.abs(dx) < 6
+
+      if (arrived) {
         state.x = state.targetX
         state.y = ground()
-        beginHideMode()
+        state.nearChat = true
+        state.facing = 1
+        face()
         return
       }
 
+      state.nearChat = false
       state.facing = dx < 0 ? -1 : 1
       face()
 
@@ -501,48 +510,18 @@
       state.y = s.y
     }
 
-    function hideStep(now) {
-      state.facing = 1
-      face()
-      state.x = state.hideAnchorX + state.hideOffset
-      state.y = state.hideAnchorY
-
-      if (now >= state.nextPeekAt) {
-        state.peekDuration = 900 + Math.random() * 900
-        state.peekTimer = now + state.peekDuration
-        setMode('peek')
-      }
-    }
-
-    function peekStep(now) {
-      state.facing = 1
-      face()
-
-      const p = 1 - Math.max(0, (state.peekTimer - now) / state.peekDuration)
-      const wave = Math.sin(p * Math.PI)
-      state.x = state.hideAnchorX + state.hideOffset - state.peekAmount * wave
-      state.y = state.hideAnchorY - Math.sin(now * 0.01) * 2
-
-      if (now >= state.peekTimer) {
-        state.nextPeekAt = now + 1400 + Math.random() * 2200
-        setMode('hide')
-      }
-    }
-
     function watchChat() {
       let lastOpen = false
 
       function scan() {
-        try {
-          const open = isChatOpen()
-          if (open && !lastOpen && !state.drag) goToChat()
-          if (!open && lastOpen && (state.mode === 'chat' || state.mode === 'hide' || state.mode === 'peek')) {
-            state.hopBaseX = state.x
-            state.hopPhase = 0
-            setMode('idle')
-          }
-          lastOpen = open
-        } catch (e) {}
+        const open = isChatOpen()
+        if (open && !lastOpen && !state.drag) goToChat()
+        if (!open && lastOpen && state.mode === 'chat') {
+          state.hopBaseX = state.x
+          state.hopPhase = 0
+          setMode('idle')
+        }
+        lastOpen = open
       }
 
       const observer = new MutationObserver(scan)
@@ -553,25 +532,23 @@
       scan()
     }
 
-    function loop(now) {
+    function loop() {
       if (state.mode === 'idle') {
         idleStep()
+        applyPos()
       } else if (state.mode === 'slide') {
         slideStep()
+        applyPos()
       } else if (state.mode === 'chat') {
         chatStep()
-      } else if (state.mode === 'hide') {
-        hideStep(now || performance.now())
-      } else if (state.mode === 'peek') {
-        peekStep(now || performance.now())
+        applyPos()
       }
-
-      applyPos()
       requestAnimationFrame(loop)
     }
 
     window.addEventListener('resize', function () {
-      state.x = clamp(state.x, 0, Math.max(0, window.innerWidth - state.w))
+      const s = stageSize()
+      state.x = clamp(state.x, 0, Math.max(0, s.w - state.w))
       state.y = ground()
       state.hopBaseX = state.x
       applyPos()
