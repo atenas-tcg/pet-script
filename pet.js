@@ -1,4 +1,17 @@
+import wixLocation from 'wix-location'
+
 $w.onReady(function () {
+    const path = wixLocation.path.join('/').toLowerCase()
+
+    if (
+        path.includes('product-page') ||
+        path.includes('productos') ||
+        path.includes('product')
+    ) {
+        cleanupFloatingPet()
+        return
+    }
+
     setTimeout(() => {
         initFloatingPet()
     }, 300)
@@ -8,13 +21,7 @@ function initFloatingPet() {
     if (typeof window === 'undefined') return
     if (typeof document === 'undefined') return
 
-    const oldPet = document.getElementById('floating-pet')
-    if (oldPet) oldPet.remove()
-
-    if (window.__petCleanup) {
-        window.__petCleanup()
-        window.__petCleanup = null
-    }
+    cleanupFloatingPet()
 
     const pet = document.createElement('img')
     pet.id = 'floating-pet'
@@ -63,7 +70,6 @@ function initFloatingPet() {
         startY = p.clientY
         baseX = r.left
         baseY = r.top
-
         pet.style.cursor = 'grabbing'
         e.preventDefault()
     }
@@ -119,4 +125,14 @@ function initFloatingPet() {
         const currentPet = document.getElementById('floating-pet')
         if (currentPet) currentPet.remove()
     }
+}
+
+function cleanupFloatingPet() {
+    if (window.__petCleanup) {
+        window.__petCleanup()
+        window.__petCleanup = null
+    }
+
+    const oldPet = document.getElementById('floating-pet')
+    if (oldPet) oldPet.remove()
 }
