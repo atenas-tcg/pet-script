@@ -7,19 +7,24 @@
 
     const stage = document.createElement('div')
     stage.id = 'pet-stage'
-    stage.style.position = 'fixed'
-    stage.style.inset = '0'
-    stage.style.pointerEvents = 'none'
-    stage.style.zIndex = '999999'
+    Object.assign(stage.style, {
+      position: 'fixed',
+      inset: '0',
+      pointerEvents: 'none',
+      zIndex: '999999'
+    })
 
     const pet = document.createElement('img')
     pet.src = 'https://i.imgur.com/4AiXzf8.png'
-    pet.style.position = 'absolute'
-    pet.style.width = '120px'
-    pet.style.left = '50px'
-    pet.style.top = '50px'
-    pet.style.cursor = 'grab'
-    pet.style.pointerEvents = 'auto'
+    Object.assign(pet.style, {
+      position: 'absolute',
+      width: '120px',
+      left: '60px',
+      top: '60px',
+      cursor: 'grab',
+      pointerEvents: 'auto',
+      transition: 'transform 0.2s'
+    })
     pet.draggable = false
 
     stage.appendChild(pet)
@@ -29,12 +34,17 @@
     let offsetX = 0
     let offsetY = 0
 
+    let vx = 0
+    let vy = 0
+
     function start(e) {
       const p = e.touches ? e.touches[0] : e
       drag = true
       const rect = pet.getBoundingClientRect()
       offsetX = p.clientX - rect.left
       offsetY = p.clientY - rect.top
+      vx = 0
+      vy = 0
       pet.style.cursor = 'grabbing'
       e.preventDefault()
     }
@@ -43,14 +53,14 @@
       if (!drag) return
       const p = e.touches ? e.touches[0] : e
 
-      let x = p.clientX - offsetX
-      let y = p.clientY - offsetY
-
-      x = Math.max(0, Math.min(window.innerWidth - 120, x))
-      y = Math.max(0, Math.min(window.innerHeight - 120, y))
+      const x = p.clientX - offsetX
+      const y = p.clientY - offsetY
 
       pet.style.left = x + 'px'
       pet.style.top = y + 'px'
+
+      vx = (e.movementX || 0) * 0.5
+      vy = (e.movementY || 0) * 0.5
 
       e.preventDefault()
     }
@@ -60,6 +70,53 @@
       pet.style.cursor = 'grab'
     }
 
+    function getChatRect() {
+      const el = document.querySelector('[class*="chat"], iframe')
+      if (!el) return null
+      return el.getBoundingClientRect()
+    }
+
+    function loop() {
+      if (!drag) {
+        vy += 0.3 // gravedad más lenta
+        vx *= 0.98 // menos movimiento brusco
+
+        let x = pet.offsetLeft + vx
+        let y = pet.offsetTop + vy
+
+        const maxX = window.innerWidth - 120
+        const maxY = window.innerHeight - 120
+
+        if (x < 0) { x = 0; vx *= -0.4 }
+        if (x > maxX) { x = maxX; vx *= -0.4 }
+
+        if (y > maxY) {
+          y = maxY
+          vy *= -0.3
+        }
+
+        pet.style.left = x + 'px'
+        pet.style.top = y + 'px'
+
+        // esconderse detrás del chat
+        const chat = getChatRect()
+        if (chat) {
+          if (
+            x + 100 > chat.left &&
+            y + 100 > chat.top
+          ) {
+            pet.style.opacity = '0.4'
+            pet.style.transform = 'scale(0.9)'
+          } else {
+            pet.style.opacity = '1'
+            pet.style.transform = 'scale(1)'
+          }
+        }
+      }
+
+      requestAnimationFrame(loop)
+    }
+
     pet.addEventListener('mousedown', start)
     pet.addEventListener('touchstart', start, { passive: false })
     window.addEventListener('mousemove', move, { passive: false })
@@ -67,14 +124,7 @@
     window.addEventListener('mouseup', end)
     window.addEventListener('touchend', end)
 
-    function floatLoop() {
-      const rect = pet.getBoundingClientRect()
-      const baseY = parseFloat(pet.style.top)
-      pet.style.top = baseY + Math.sin(Date.now() * 0.003) * 0.5 + 'px'
-      requestAnimationFrame(floatLoop)
-    }
-
-    floatLoop()
+    loop()
   }
 
   if (document.readyState === 'loading') {
