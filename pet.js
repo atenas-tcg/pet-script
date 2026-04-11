@@ -615,6 +615,116 @@
       return r.width > 180 || r.height > 180
     }
 
+    function findChatInput() {
+      const selectors = [
+        'textarea',
+        'input[type="text"]',
+        '[contenteditable="true"]',
+        '[role="textbox"]'
+      ]
+
+      let best = null
+      let bestScore = -1
+
+      for (const selector of selectors) {
+        const nodes = document.querySelectorAll(selector)
+        for (const el of nodes) {
+          if (!isVisible(el)) continue
+          const r = el.getBoundingClientRect()
+          const txt = `${el.id || ''} ${el.className || ''} ${el.getAttribute('aria-label') || ''} ${el.getAttribute('placeholder') || ''}`.toLowerCase()
+
+          let score = 0
+          if (txt.includes('chat')) score += 80
+          if (txt.includes('message')) score += 50
+          if (txt.includes('write')) score += 20
+          if (txt.includes('type')) score += 20
+          if (txt.includes('mensaje')) score += 30
+          if (txt.includes('escribe')) score += 30
+          if (r.bottom > window.innerHeight * 0.5) score += 20
+          if (r.right > window.innerWidth * 0.5) score += 20
+
+          if (score > bestScore) {
+            best = el
+            bestScore = score
+          }
+        }
+      }
+
+      return bestScore >= 40 ? best : null
+    }
+
+    function setTargetBehindChat() {
+      const r = updateChatRect()
+      if (!r) return false
+
+      const side = r.left > window.innerWidth * 0.5 ? 1 : -1
+      const x = side > 0
+        ? r.left + r.width - state.w * 0.18
+        : r.left - state.w * 0.82
+
+      state.targetX = clamp(x, 0, window.innerWidth - state.w)
+      state.targetY = clamp(r.bottom - state.h - 8, 0, ground())
+      return true
+    }
+
+    function setTargetPeekChat() {
+      const r = updateChatRect()
+      if (!r) return false
+
+      const side = r.left > window.innerWidth * 0.5 ? 1 : -1
+      const x = side > 0
+        ? r.left - state.w * 0.52
+        : r.right - state.w * 0.48
+
+      state.targetX = clamp(x, 0, window.innerWidth - state.w)
+      state.targetY = clamp(r.bottom - state.h - 10, 0, ground())
+      return true
+    }
+
+    function bindChatInputReactions() {
+      let current = null
+
+      function onTypingBurst() {
+        state.typingUntil = performance.now() + 1800
+        state.inputActive = true
+
+        if (isChatOpen()) {
+          if (state.mode !== 'hide-behind-chat' && state.mode !== 'peek-chat') {
+            beginHideBehindChat()
+          } else if (state.mode === 'hide-behind-chat' && Math.random() < 0.12) {
+            beginPeekChat()
+          }
+        }
+      }
+
+      function attach() {
+        const input = findChatInput()
+        if (!input || input === current) return
+
+        current = input
+
+        input.addEventListener('focus', () => {
+          state.inputActive = true
+          state.typingUntil = performance.now() + 1500
+          if (isChatOpen()) beginHideBehindChat()
+        })
+
+        input.addEventListener('blur', () => {
+          state.inputActive = false
+        })
+
+        input.addEventListener('input', onTypingBurst)
+        input.addEventListener('keydown', () => {
+          onTypingBurst()
+          if (Math.random() < 0.02 && state.mode !== 'cover-screen') beginCoverScreen()
+          else if (Math.random() < 0.18 && state.mode === 'hide-behind-chat') beginPeekChat()
+        })
+      }
+
+      attach()
+      setInterval(attach, 1200)
+    }
+
     function setTargetNearChat() {
       const r = updateChatRect()
       if (!r) return false
@@ -710,27 +820,20 @@
 
     function decideNextAction() {
       if (state.drag || state.mode === 'slide') return
-      if (now() < state.nextActionAt) return
 
-      const chatOpen = isChatOpen()
-      const roll = Math.random()
+      const t = performance.now()
 
-      if (chatOpen && roll < 0.45) {
-        beginApproachChat()
+      if ((state.inputActive || t < state.typingUntil) && isChatOpen()) {
+        if (state.mode !== 'hide-behind-chat' && state.mode !== 'peek-chat' && state.mode !== 'cover-screen') {
+          beginHideBehindChat()
+        }
         return
       }
 
-      if (chatOpen && roll < 0.7) {
-        beginCoverScreen()
-        return
-      }
+      if (t < state.nextActionAt) return
 
-      if (roll < 0.82) {
-        beginRoam()
-        return
-      }
-
-      beginLaugh('JA JA JA')
+      if (Math.random() < 0.72) beginRoam()
+      else beginLaugh('jeje')
     }
 
     function roamStep() {
@@ -805,7 +908,7 @@
       setInterval(scan, 700)
       scan()
     }
-    
+
     function loop() {
       decideNextAction()
 
@@ -815,6 +918,8 @@
         slideStep()
       } else if (state.mode === 'roam') {
         roamStep()
+      } else if (state.mode === 'hide-behind-chat') {
+        hideBehindChatStep()
       } else if (state.mode === 'approach-chat') {
         approachChatStep()
       } else if (state.mode === 'peek-chat') {
@@ -848,8 +953,10 @@
     state.y = ground()
     face()
     applyPos()
+    setPetLayer(true)
     setMode('idle')
     watchChat()
+    bindChatInputReactions()
     loop()
   }
 
