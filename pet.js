@@ -1,4 +1,4 @@
-window.initFloatingPet = function() { => {
+window.initFloatingPet = function() {
   if (window.__petLoaded) return
   window.__petLoaded = true
 
@@ -6,23 +6,6 @@ window.initFloatingPet = function() { => {
 
   document.head.insertAdjacentHTML('beforeend', `
     <style>
-      #pet-stage,#pet-stage *{box-sizing:border-box;user-select:none;-webkit-user-select:none}
-      #pet-stage{position:fixed;inset:0;pointer-events:none;z-index:2147483646;overflow:hidden}
-      #pet{position:absolute;width:${w}px;height:${h}px;left:90px;top:90px;pointer-events:auto;cursor:grab;transform-origin:50% 80%}
-      #pet.drag{cursor:grabbing}
-      #pet.left{transform:scaleX(-1)}
-      #pet .wrap{position:absolute;inset:0;filter:drop-shadow(0 10px 12px rgba(0,0,0,.18));animation:idle .8s ease-in-out infinite}
-      #pet.drag .wrap{animation:none}
-      #pet.move .wrap{animation:move .18s linear infinite}
-      #pet.hide .wrap{animation:hide .35s ease-in-out infinite}
-      #pet .shadow{position:absolute;left:50%;bottom:8px;width:56px;height:14px;transform:translateX(-50%);border-radius:50%;background:rgba(0,0,0,.16);filter:blur(3px)}
-      #pet img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;pointer-events:none;-webkit-user-drag:none}
-      #pet .grab{opacity:0}
-      #pet.drag .idle,#pet.move .idle{opacity:0}
-      #pet.drag .grab,#pet.move .grab{opacity:1}
-      @keyframes idle{0%,100%{transform:translateY(0)}50%{transform:translateY(-14px)}}
-      @keyframes move{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px) rotate(.7deg)}}
-      @keyframes hide{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px) scale(1.03)}}
     </style>
   `)
 
@@ -31,8 +14,8 @@ window.initFloatingPet = function() { => {
       <div id="pet">
         <div class="shadow"></div>
         <div class="wrap">
-          <img class="idle" src="https://static.wixstatic.com/media/459a71_a633483b6b4c4f5fbc1d70c9e84b11eb~mv2.png">
-          <img class="grab" src="https://static.wixstatic.com/media/459a71_7a648ae60bc14222b55c0616e24c9044~mv2.png">
+          <img class="idle" src="TU_IMAGEN_1">
+          <img class="grab" src="TU_IMAGEN_2">
         </div>
       </div>
     </div>
@@ -227,4 +210,4 @@ window.initFloatingPet = function() { => {
   findChat()
   draw()
   loop()
-})()
+}
