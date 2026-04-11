@@ -59,8 +59,8 @@
       pet.style.left = x + 'px'
       pet.style.top = y + 'px'
 
-      vx = (e.movementX || 0) * 0.5
-      vy = (e.movementY || 0) * 0.5
+      vx = (e.movementX || 0) * 0.25
+      vy = (e.movementY || 0) * 0.25
 
       e.preventDefault()
     }
@@ -78,8 +78,8 @@
 
     function loop() {
       if (!drag) {
-        vy += 0.3 // gravedad más lenta
-        vx *= 0.98 // menos movimiento brusco
+        vy += 0.15
+        vx *= 0.99
 
         let x = pet.offsetLeft + vx
         let y = pet.offsetTop + vy
@@ -87,26 +87,22 @@
         const maxX = window.innerWidth - 120
         const maxY = window.innerHeight - 120
 
-        if (x < 0) { x = 0; vx *= -0.4 }
-        if (x > maxX) { x = maxX; vx *= -0.4 }
+        if (x < 0) { x = 0; vx *= -0.2 }
+        if (x > maxX) { x = maxX; vx *= -0.2 }
 
         if (y > maxY) {
           y = maxY
-          vy *= -0.3
+          vy *= -0.15
         }
 
         pet.style.left = x + 'px'
         pet.style.top = y + 'px'
 
-        // esconderse detrás del chat
         const chat = getChatRect()
         if (chat) {
-          if (
-            x + 100 > chat.left &&
-            y + 100 > chat.top
-          ) {
-            pet.style.opacity = '0.4'
-            pet.style.transform = 'scale(0.9)'
+          if (x + 100 > chat.left && y + 100 > chat.top) {
+            pet.style.opacity = '0.5'
+            pet.style.transform = 'scale(0.92)'
           } else {
             pet.style.opacity = '1'
             pet.style.transform = 'scale(1)'
