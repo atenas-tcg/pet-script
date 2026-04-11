@@ -98,8 +98,8 @@
     function end() {
       if (!drag) return
       drag = false
-      vx *= 1.3
-      vy *= 1.3
+      vx *= 1.4
+      vy *= 1.4
       pet.style.cursor = 'grab'
     }
     
