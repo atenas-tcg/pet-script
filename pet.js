@@ -7,8 +7,7 @@
 
     const style = document.createElement('style')
     style.textContent = `
-      #pet-stage,
-      #pet-stage *{
+      #pet-stage,#pet-stage *{
         box-sizing:border-box;
         user-select:none;
         -webkit-user-select:none;
@@ -24,13 +23,6 @@
         pointer-events:none;
         z-index:2147483646;
         background:transparent;
-      }
-      #pet-stage .obstacle{
-        position:absolute;
-        border-radius:18px;
-        background:rgba(90,70,130,.12);
-        border:2px dashed rgba(90,70,130,.25);
-        pointer-events:none;
       }
       #pet-float{
         position:absolute;
@@ -160,9 +152,6 @@
     const stage = document.createElement('div')
     stage.id = 'pet-stage'
     stage.innerHTML = `
-      <div class="obstacle" style="left:14%; top:72%; width:120px; height:34px;"></div>
-      <div class="obstacle" style="left:44%; top:68%; width:150px; height:38px;"></div>
-      <div class="obstacle" style="right:12%; top:72%; width:110px; height:34px;"></div>
       <div id="pet-float">
         <div class="shadow"></div>
         <div class="wrap">
@@ -199,9 +188,6 @@
       hopSpeed: 0.11,
       hopRange: 18,
       targetX: 0,
-      targetY: 0,
-      chatDetected: false,
-      nearChat: false,
       hideAnchorX: 0,
       hideAnchorY: 0,
       hideOffset: 58,
@@ -221,12 +207,8 @@
       return { x: e.clientX, y: e.clientY }
     }
 
-    function stageSize() {
-      return { w: stage.clientWidth, h: stage.clientHeight }
-    }
-
     function ground() {
-      return Math.max(0, stage.clientHeight - state.h)
+      return Math.max(0, window.innerHeight - state.h)
     }
 
     function applyPos() {
@@ -249,47 +231,13 @@
       if (mode === 'peek') pet.classList.add('peeking')
     }
 
-    function getObstacles() {
-      const sr = stage.getBoundingClientRect()
-      return [...stage.querySelectorAll('.obstacle')].map(el => {
-        const r = el.getBoundingClientRect()
-        return { x: r.left - sr.left, y: r.top - sr.top, w: r.width, h: r.height }
-      })
-    }
-
-    function hit(a, b) {
-      return a.x < b.x + b.w &&
-             a.x + a.w > b.x &&
-             a.y < b.y + b.h &&
-             a.y + a.h > b.y
-    }
-
     function solve(nx, ny) {
-      const box = { x: nx, y: ny, w: state.w, h: state.h }
-      const size = stageSize()
-      const obs = getObstacles()
-      let hitX = false
-      let hitY = false
-
-      if (box.x < 0) { box.x = 0; hitX = true }
-      if (box.y < 0) { box.y = 0; hitY = true }
-      if (box.x + box.w > size.w) { box.x = size.w - box.w; hitX = true }
-      if (box.y + box.h > size.h) { box.y = size.h - box.h; hitY = true }
-
-      for (const o of obs) {
-        if (!hit(box, o)) continue
-        const l = box.x + box.w - o.x
-        const r = o.x + o.w - box.x
-        const t = box.y + box.h - o.y
-        const b = o.y + o.h - box.y
-        const m = Math.min(l, r, t, b)
-        if (m === l) { box.x = o.x - box.w; hitX = true }
-        else if (m === r) { box.x = o.x + o.w; hitX = true }
-        else if (m === t) { box.y = o.y - box.h; hitY = true }
-        else { box.y = o.y + o.h; hitY = true }
+      return {
+        x: clamp(nx, 0, Math.max(0, window.innerWidth - state.w)),
+        y: clamp(ny, 0, Math.max(0, window.innerHeight - state.h)),
+        hitX: nx < 0 || nx > Math.max(0, window.innerWidth - state.w),
+        hitY: ny < 0 || ny > Math.max(0, window.innerHeight - state.h)
       }
-
-      return { x: box.x, y: box.y, hitX, hitY }
     }
 
     function startDrag(e) {
@@ -313,7 +261,6 @@
       if (!state.drag) return
       e.preventDefault()
       const p = point(e)
-      const sr = stage.getBoundingClientRect()
       const now = performance.now()
       const dt = Math.max(8, now - state.lastMoveTime)
 
@@ -323,8 +270,8 @@
       state.lastPointerY = p.y
       state.lastMoveTime = now
 
-      const nx = p.x - sr.left - state.offsetX
-      const ny = p.y - sr.top - state.offsetY
+      const nx = p.x - state.offsetX
+      const ny = p.y - state.offsetY
       const s = solve(nx, ny)
 
       state.x = s.x
@@ -375,7 +322,7 @@
       state.vx *= 0.992
       state.vy *= 0.996
 
-      const sx = solve(state.x + state.vx, state.y)
+      let sx = solve(state.x + state.vx, state.y)
       state.x = sx.x
       if (sx.hitX) {
         state.vx *= -0.68
@@ -384,7 +331,7 @@
         face()
       }
 
-      const sy = solve(state.x, state.y + state.vy)
+      let sy = solve(state.x, state.y + state.vy)
       state.y = sy.y
       if (sy.hitY) {
         if (state.vy > 0) {
@@ -412,34 +359,43 @@
       return r.width > 20 && r.height > 20 && s.display !== 'none' && s.visibility !== 'hidden' && s.opacity !== '0'
     }
 
+    function safeQuery(selector) {
+      try {
+        return Array.from(document.querySelectorAll(selector))
+      } catch (e) {
+        return []
+      }
+    }
+
     function scoreChatElement(el) {
       if (!isVisible(el)) return -1
       const r = el.getBoundingClientRect()
+      const text = [
+        el.id || '',
+        typeof el.className === 'string' ? el.className : '',
+        el.getAttribute('aria-label') || '',
+        el.getAttribute('title') || '',
+        el.innerText || ''
+      ].join(' ').toLowerCase()
+
       let score = 0
-      const txt = `${el.id || ''} ${el.className || ''} ${el.getAttribute('aria-label') || ''} ${el.getAttribute('title') || ''} ${el.innerText || ''}`.toLowerCase()
-
-      if (txt.includes('wix chat')) score += 120
-      if (txt.includes('chat')) score += 70
-      if (txt.includes('message')) score += 25
-      if (el.tagName === 'IFRAME') score += 30
-      if (r.right > window.innerWidth * 0.55) score += 25
-      if (r.bottom > window.innerHeight * 0.55) score += 25
-      if (r.width >= 40 && r.width <= 420) score += 15
-      if (r.height >= 40 && r.height <= 700) score += 15
-
+      if (text.includes('wix chat')) score += 120
+      if (text.includes('chat')) score += 70
+      if (text.includes('message')) score += 20
+      if (el.tagName === 'IFRAME') score += 20
+      if (r.right > window.innerWidth * 0.55) score += 20
+      if (r.bottom > window.innerHeight * 0.55) score += 20
       return score
     }
 
     function findChatElement() {
       const selectors = [
-        'iframe[title*="chat" i]',
-        'iframe[aria-label*="chat" i]',
-        '[aria-label*="wix chat" i]',
-        '[aria-label*="chat" i]',
-        '[title*="wix chat" i]',
-        '[title*="chat" i]',
-        '[id*="chat" i]',
-        '[class*="chat" i]',
+        'iframe[title*="chat"]',
+        'iframe[aria-label*="chat"]',
+        '[aria-label*="chat"]',
+        '[title*="chat"]',
+        '[id*="chat"]',
+        '[class*="chat"]',
         'button',
         'div',
         'iframe'
@@ -448,20 +404,19 @@
       let best = null
       let bestScore = -1
 
-      for (const selector of selectors) {
-        const list = document.querySelectorAll(selector)
-        for (const el of list) {
+      selectors.forEach(selector => {
+        safeQuery(selector).forEach(el => {
           const score = scoreChatElement(el)
           if (score > bestScore) {
             best = el
             bestScore = score
           }
-        }
-      }
+        })
+      })
 
-      if (bestScore >= 40) return best
+      if (bestScore >= 35) return best
 
-      const fallback = [...document.querySelectorAll('button,div,iframe')].filter(isVisible)
+      const fallback = safeQuery('button,div,iframe').filter(isVisible)
       fallback.sort((a, b) => {
         const ar = a.getBoundingClientRect()
         const br = b.getBoundingClientRect()
@@ -488,19 +443,21 @@
     function getChatTarget() {
       const r = getChatRect()
       if (r) {
-        const x = clamp(r.left + r.width * 0.5 - state.w * 0.5, 0, Math.max(0, window.innerWidth - state.w))
-        const y = ground()
-        return { x, y, rect: r, found: true }
+        return {
+          x: clamp(r.left + r.width * 0.5 - state.w * 0.5, 0, Math.max(0, window.innerWidth - state.w)),
+          rect: r
+        }
       }
 
-      const x = Math.max(0, window.innerWidth - state.w - 24)
-      const y = ground()
-      return { x, y, rect: null, found: false }
+      return {
+        x: Math.max(0, window.innerWidth - state.w - 24),
+        rect: null
+      }
     }
 
     function beginHideMode() {
       const t = getChatTarget()
-      const anchorX = t.found && t.rect
+      const anchorX = t.rect
         ? clamp(t.rect.left + t.rect.width - state.w + 22, 0, Math.max(0, window.innerWidth - state.w))
         : t.x
 
@@ -519,30 +476,21 @@
     function goToChat() {
       const t = getChatTarget()
       state.targetX = t.x
-      state.targetY = t.y
-      state.chatDetected = t.found
-      state.nearChat = false
       setMode('chat')
     }
 
     function chatStep() {
       const t = getChatTarget()
       state.targetX = t.x
-      state.targetY = t.y
-      state.chatDetected = t.found
-
       const dx = state.targetX - state.x
-      const arrived = Math.abs(dx) < 6
 
-      if (arrived) {
+      if (Math.abs(dx) < 6) {
         state.x = state.targetX
         state.y = ground()
-        state.nearChat = true
         beginHideMode()
         return
       }
 
-      state.nearChat = false
       state.facing = dx < 0 ? -1 : 1
       face()
 
@@ -585,14 +533,16 @@
       let lastOpen = false
 
       function scan() {
-        const open = isChatOpen()
-        if (open && !lastOpen && !state.drag) goToChat()
-        if (!open && lastOpen && (state.mode === 'chat' || state.mode === 'hide' || state.mode === 'peek')) {
-          state.hopBaseX = state.x
-          state.hopPhase = 0
-          setMode('idle')
-        }
-        lastOpen = open
+        try {
+          const open = isChatOpen()
+          if (open && !lastOpen && !state.drag) goToChat()
+          if (!open && lastOpen && (state.mode === 'chat' || state.mode === 'hide' || state.mode === 'peek')) {
+            state.hopBaseX = state.x
+            state.hopPhase = 0
+            setMode('idle')
+          }
+          lastOpen = open
+        } catch (e) {}
       }
 
       const observer = new MutationObserver(scan)
@@ -606,26 +556,22 @@
     function loop(now) {
       if (state.mode === 'idle') {
         idleStep()
-        applyPos()
       } else if (state.mode === 'slide') {
         slideStep()
-        applyPos()
       } else if (state.mode === 'chat') {
         chatStep()
-        applyPos()
       } else if (state.mode === 'hide') {
         hideStep(now || performance.now())
-        applyPos()
       } else if (state.mode === 'peek') {
         peekStep(now || performance.now())
-        applyPos()
       }
+
+      applyPos()
       requestAnimationFrame(loop)
     }
 
     window.addEventListener('resize', function () {
-      const s = stageSize()
-      state.x = clamp(state.x, 0, Math.max(0, s.w - state.w))
+      state.x = clamp(state.x, 0, Math.max(0, window.innerWidth - state.w))
       state.y = ground()
       state.hopBaseX = state.x
       applyPos()
