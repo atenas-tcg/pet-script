@@ -15,7 +15,7 @@
       position: 'fixed',
       inset: '0',
       pointerEvents: 'none',
-      zIndex: '1000'
+      zIndex: '999999'
     })
 
     const pet = document.createElement('img')
@@ -160,7 +160,7 @@
     function loop() {
       if (!drag) {
         vy += 0.195
-        vx *= 0.96
+        vx *= 0.992
 
         let x = pet.offsetLeft + vx
         let y = pet.offsetTop + vy
@@ -188,10 +188,10 @@
 
         const chat = getChatRect()
         if (chat && overlapsChat(x, y, chat)) {
-          pet.style.opacity = '1'
+          pet.style.opacity = '0.55'
           pet.style.transform = 'scale(0.93)'
         } else {
-          pet.style.opacity = '1000'
+          pet.style.opacity = '1'
           pet.style.transform = 'scale(1)'
         }
       }
