@@ -50,7 +50,6 @@
         opacity:0;
         transition:opacity .18s ease,transform .18s ease;
         box-shadow:0 10px 24px rgba(0,0,0,.18);
-        pointer-events:none;
       }
       #pet-laugh.show{
         opacity:1;
@@ -193,7 +192,7 @@
     stage.id = 'pet-stage'
     stage.innerHTML = `
       <div id="pet-overlay"></div>
-      <div id="pet-laugh">jeje</div>
+      <div id="pet-laugh">JA JA JA</div>
       <div class="obstacle" style="left:14%; top:72%; width:120px; height:34px;"></div>
       <div class="obstacle" style="left:44%; top:68%; width:150px; height:38px;"></div>
       <div class="obstacle" style="right:12%; top:72%; width:110px; height:34px;"></div>
@@ -243,17 +242,30 @@
       typingUntil: 0,
       chatInputBound: false,
       hiddenBehindChat: false,
-      coverActive: false
+      coverActive: false,
+      maskRect: null
     }
 
     function clamp(v, min, max) {
       return Math.max(min, Math.min(max, v))
     }
 
+    function rand(min, max) {
+      return Math.random() * (max - min) + min
+    }
+
+    function now() {
+      return performance.now()
+    }
+
     function point(e) {
       if (e.touches && e.touches.length) return { x: e.touches[0].clientX, y: e.touches[0].clientY }
       if (e.changedTouches && e.changedTouches.length) return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY }
       return { x: e.clientX, y: e.clientY }
+    }
+
+    function stageSize() {
+      return { w: stage.clientWidth, h: stage.clientHeight }
     }
 
     function ground() {
@@ -263,10 +275,83 @@
     function applyPos() {
       pet.style.left = state.x + 'px'
       pet.style.top = state.y + 'px'
+      refreshPetMask()
     }
 
     function setPetLayer(front = true) {
       pet.style.zIndex = front ? '2147483647' : '2147483645'
+    }
+
+    function hideBehindChatStep() {
+      const done = moveToTarget(0.16, 18, 6)
+
+      if (done) {
+        state.x = state.targetX
+        state.y = state.targetY + Math.sin(performance.now() * 0.016) * 3
+      }
+
+      refreshPetMask()
+
+      if (performance.now() > state.typingUntil) {
+        if (Math.random() < 0.55) beginPeekChat()
+        else finishAction()
+      }
+    }
+
+    function setPetClip(hidden) {
+      if (!hidden || !state.chatRect) {
+        pet.style.clipPath = 'none'
+        pet.style.webkitClipPath = 'none'
+        return
+      }
+
+      const px = state.x
+      const py = state.y
+      const pw = state.w
+      const ph = state.h
+
+      const rx1 = state.chatRect.left
+      const ry1 = state.chatRect.top
+      const rx2 = state.chatRect.right
+      const ry2 = state.chatRect.bottom
+
+      const ix1 = Math.max(px, rx1)
+      const iy1 = Math.max(py, ry1)
+      const ix2 = Math.min(px + pw, rx2)
+      const iy2 = Math.min(py + ph, ry2)
+
+      if (ix2 <= ix1 || iy2 <= iy1) {
+        pet.style.clipPath = 'none'
+        pet.style.webkitClipPath = 'none'
+        return
+      }
+
+      const left = ((ix1 - px) / pw) * 100
+      const right = ((ix2 - px) / pw) * 100
+      const top = ((iy1 - py) / ph) * 100
+      const bottom = ((iy2 - py) / ph) * 100
+
+      const polygon = `polygon(
+        0% 0%,
+        100% 0%,
+        100% ${top}%,
+        ${right}% ${top}%,
+        ${right}% ${bottom}%,
+        100% ${bottom}%,
+        100% 100%,
+        0% 100%,
+        0% ${bottom}%,
+        ${left}% ${bottom}%,
+        ${left}% ${top}%,
+        0% ${top}%
+      )`
+
+      pet.style.clipPath = polygon
+      pet.style.webkitClipPath = polygon
+    }
+
+    function refreshPetMask() {
+      setPetClip(state.hiddenBehindChat)
     }
 
     function face() {
@@ -284,7 +369,7 @@
       if (mode === 'cover-screen') pet.classList.add('covering')
     }
 
-    function showLaugh(text = 'jeje') {
+    function showLaugh(text = 'JA JA JA') {
       laughBubble.textContent = text
       laughBubble.classList.add('show')
     }
@@ -310,16 +395,15 @@
 
     function solve(nx, ny) {
       const box = { x: nx, y: ny, w: state.w, h: state.h }
-      const w = stage.clientWidth
-      const h = stage.clientHeight
+      const size = stageSize()
       const obs = getObstacles()
       let hitX = false
       let hitY = false
 
       if (box.x < 0) { box.x = 0; hitX = true }
       if (box.y < 0) { box.y = 0; hitY = true }
-      if (box.x + box.w > w) { box.x = w - box.w; hitX = true }
-      if (box.y + box.h > h) { box.y = h - box.h; hitY = true }
+      if (box.x + box.w > size.w) { box.x = size.w - box.w; hitX = true }
+      if (box.y + box.h > size.h) { box.y = size.h - box.h; hitY = true }
 
       for (const o of obs) {
         if (!hit(box, o)) continue
@@ -348,12 +432,11 @@
       state.lastPointerY = p.y
       state.pointerVX = 0
       state.pointerVY = 0
-      state.lastMoveTime = performance.now()
+      state.lastMoveTime = now()
       state.vx = 0
       state.vy = 0
       overlay.classList.remove('show')
       hideLaugh()
-      setPetLayer(true)
       setMode('drag')
     }
 
@@ -362,14 +445,14 @@
       e.preventDefault()
       const p = point(e)
       const sr = stage.getBoundingClientRect()
-      const now = performance.now()
-      const dt = Math.max(8, now - state.lastMoveTime)
+      const t = now()
+      const dt = Math.max(8, t - state.lastMoveTime)
 
       state.pointerVX = (p.x - state.lastPointerX) / dt * 16
       state.pointerVY = (p.y - state.lastPointerY) / dt * 16
       state.lastPointerX = p.x
       state.lastPointerY = p.y
-      state.lastMoveTime = now
+      state.lastMoveTime = t
 
       const nx = p.x - sr.left - state.offsetX
       const ny = p.y - sr.top - state.offsetY
@@ -388,7 +471,7 @@
       state.vy = clamp(state.pointerVY * 1.2, -34, 34)
       state.facing = state.vx < 0 ? -1 : 1
       face()
-      state.nextActionAt = performance.now() + 1800 + Math.random() * 1600
+      state.nextActionAt = now() + rand(1800, 3200)
       setMode('slide')
     }
 
@@ -517,13 +600,11 @@
         state.chatRect = null
         return null
       }
-
       const r = el.getBoundingClientRect()
       if (r.width < 20 || r.height < 20) {
         state.chatRect = null
         return null
       }
-
       state.chatRect = r
       return r
     }
@@ -534,114 +615,51 @@
       return r.width > 180 || r.height > 180
     }
 
-    function findChatInput() {
-      const selectors = [
-        'textarea',
-        'input[type="text"]',
-        '[contenteditable="true"]',
-        '[role="textbox"]'
-      ]
-
-      let best = null
-      let bestScore = -1
-
-      for (const selector of selectors) {
-        const nodes = document.querySelectorAll(selector)
-        for (const el of nodes) {
-          if (!isVisible(el)) continue
-          const r = el.getBoundingClientRect()
-          const txt = `${el.id || ''} ${el.className || ''} ${el.getAttribute('aria-label') || ''} ${el.getAttribute('placeholder') || ''}`.toLowerCase()
-
-          let score = 0
-          if (txt.includes('chat')) score += 80
-          if (txt.includes('message')) score += 50
-          if (txt.includes('write')) score += 20
-          if (txt.includes('type')) score += 20
-          if (txt.includes('mensaje')) score += 30
-          if (txt.includes('escribe')) score += 30
-          if (r.bottom > window.innerHeight * 0.5) score += 20
-          if (r.right > window.innerWidth * 0.5) score += 20
-
-          if (score > bestScore) {
-            best = el
-            bestScore = score
-          }
-        }
-      }
-
-      return bestScore >= 40 ? best : null
-    }
-
-    function setTargetBehindChat() {
+    function setTargetNearChat() {
       const r = updateChatRect()
       if (!r) return false
-
-      const side = r.left > window.innerWidth * 0.5 ? 1 : -1
-      const x = side > 0
-        ? r.left + r.width - state.w * 0.32
-        : r.left - state.w * 0.68
-
-      state.targetX = clamp(x, 0, window.innerWidth - state.w)
-      state.targetY = clamp(r.bottom - state.h - 8, 0, ground())
-      return true
-    }
-
-    function setTargetPeekChat() {
-      const r = updateChatRect()
-      if (!r) return false
-
-      const side = r.left > window.innerWidth * 0.5 ? 1 : -1
-      const x = side > 0
-        ? r.left - state.w * 0.52
-        : r.right - state.w * 0.48
-
-      state.targetX = clamp(x, 0, window.innerWidth - state.w)
-      state.targetY = clamp(r.bottom - state.h - 10, 0, ground())
+      state.targetX = clamp(r.left + r.width * 0.5 - state.w * 0.5, 0, window.innerWidth - state.w)
+      state.targetY = ground()
       return true
     }
 
     function setRandomRoamTarget() {
-      state.targetX = Math.random() * Math.max(24, window.innerWidth - state.w - 24) + 12
+      state.targetX = rand(24, Math.max(24, window.innerWidth - state.w - 24))
       state.targetY = ground()
     }
 
     function moveToTarget(speed = 0.14, maxStep = 16, hopAmp = 8) {
       const dx = state.targetX - state.x
-      const dy = state.targetY - state.y
-
-      if (Math.abs(dx) < 4 && Math.abs(dy) < 4) {
+      if (Math.abs(dx) < 4) {
         state.x = state.targetX
-        state.y = state.targetY
+        state.y = ground()
         return true
       }
 
       state.facing = dx < 0 ? -1 : 1
       face()
 
-      state.x += clamp(dx * speed, -maxStep, maxStep)
-      state.y += clamp(dy * speed, -12, 12) + Math.sin(performance.now() * 0.02) * hopAmp * 0.15
-
-      const s = solve(state.x, state.y)
+      const stepX = clamp(dx * speed, -maxStep, maxStep)
+      const hop = Math.sin(now() * 0.02) * hopAmp
+      const s = solve(state.x + stepX, ground() + hop)
       state.x = s.x
       state.y = s.y
-
       return false
-    }
-
-    function beginRoam() {
-      setRandomRoamTarget()
-      state.actionUntil = performance.now() + 1800 + Math.random() * 2200
-      state.hiddenBehindChat = false
-      setPetLayer(true)
-      setMode('roam')
     }
 
     function beginHideBehindChat() {
       if (!setTargetBehindChat()) return false
       state.actionUntil = performance.now() + 1400 + Math.random() * 1800
       state.hiddenBehindChat = true
-      setPetLayer(false)
+      setPetLayer(true)
       setMode('hide-behind-chat')
+      return true
+    }
+
+    function beginApproachChat() {
+      if (!setTargetNearChat()) return false
+      state.actionUntil = now() + rand(1800, 3200)
+      setMode('approach-chat')
       return true
     }
 
@@ -654,23 +672,25 @@
       return true
     }
 
-    function beginLaugh(text = 'jeje') {
-      state.actionUntil = performance.now() + 900 + Math.random() * 1200
-      state.hiddenBehindChat = false
-      setPetLayer(true)
+    function beginRoam() {
+      setRandomRoamTarget()
+      state.actionUntil = now() + rand(1400, 2800)
+      setMode('roam')
+    }
+
+    function beginLaugh(text = 'JA JA JA') {
+      state.actionUntil = now() + rand(1200, 2200)
       showLaugh(text)
       setMode('laugh')
     }
 
     function beginCoverScreen() {
       state.targetX = clamp(window.innerWidth * 0.5 - state.w * 0.5, 0, window.innerWidth - state.w)
-      state.targetY = clamp(window.innerHeight * 0.26 - state.h * 0.5, 0, window.innerHeight - state.h)
-      state.actionUntil = performance.now() + 1400 + Math.random() * 1200
-      state.hiddenBehindChat = false
-      state.coverActive = true
-      setPetLayer(true)
+      state.targetY = clamp(window.innerHeight * 0.28 - state.h * 0.5, 0, window.innerHeight - state.h)
+      state.actionUntil = now() + rand(1800, 2600)
       overlay.classList.add('show')
-      showLaugh('JA JA')
+      showLaugh('jeje')
+      state.coverActive = true
       setMode('cover-screen')
     }
 
@@ -680,122 +700,102 @@
       state.coverActive = false
       state.hiddenBehindChat = false
       setPetLayer(true)
+      pet.style.clipPath = 'none'
+      pet.style.webkitClipPath = 'none'
       state.hopBaseX = state.x
       state.hopPhase = 0
       state.nextActionAt = performance.now() + 1800 + Math.random() * 2600
       setMode('idle')
     }
 
-    function roamStep() {
-      const done = moveToTarget(0.08, 10, 4)
-      if (done || performance.now() > state.actionUntil) finishAction()
+    function decideNextAction() {
+      if (state.drag || state.mode === 'slide') return
+      if (now() < state.nextActionAt) return
+
+      const chatOpen = isChatOpen()
+      const roll = Math.random()
+
+      if (chatOpen && roll < 0.45) {
+        beginApproachChat()
+        return
+      }
+
+      if (chatOpen && roll < 0.7) {
+        beginCoverScreen()
+        return
+      }
+
+      if (roll < 0.82) {
+        beginRoam()
+        return
+      }
+
+      beginLaugh('JA JA JA')
     }
 
-    function hideBehindChatStep() {
-      const done = moveToTarget(0.16, 18, 6)
-      if (done) {
-        state.x = state.targetX
-        state.y = state.targetY + Math.sin(performance.now() * 0.016) * 3
-      }
+    function roamStep() {
+      const done = moveToTarget(0.1, 11, 5)
+      if (done || now() > state.actionUntil) finishAction()
+    }
 
-      if (performance.now() > state.typingUntil) {
-        if (Math.random() < 0.55) beginPeekChat()
-        else finishAction()
+    function approachChatStep() {
+      const done = moveToTarget(0.16, 18, 10)
+      if (done) {
+        state.actionUntil = now() + rand(900, 1600)
+        setMode('peek-chat')
       }
+      if (now() > state.actionUntil && state.mode === 'approach-chat') finishAction()
     }
 
     function peekChatStep() {
-      const done = moveToTarget(0.15, 16, 6)
-
-      if (done) {
-        state.y = state.targetY + Math.sin(performance.now() * 0.03) * 5
+      if (!state.chatRect) {
+        finishAction()
+        return
       }
 
-      if (Math.random() < 0.012) showLaugh('jeje')
-      if (performance.now() > state.actionUntil) {
+      const r = state.chatRect
+      const chatCenter = r.left + r.width * 0.5
+      state.facing = state.x + state.w * 0.5 > chatCenter ? -1 : 1
+      face()
+
+      state.y = ground() + Math.sin(now() * 0.024) * 6
+      if (Math.random() < 0.015) showLaugh('...')
+      else if (Math.random() < 0.02) showLaugh('jeje')
+
+      if (now() > state.actionUntil) {
         hideLaugh()
-        if (state.inputActive || performance.now() < state.typingUntil) beginHideBehindChat()
+        if (Math.random() < 0.5) beginLaugh('jeje')
         else finishAction()
       }
     }
 
     function laughStep() {
-      state.y = ground() + Math.sin(performance.now() * 0.03) * 8
-      if (performance.now() > state.actionUntil) finishAction()
+      state.y = ground() + Math.sin(now() * 0.03) * 8
+      if (now() > state.actionUntil) finishAction()
     }
 
     function coverScreenStep() {
-      const done = moveToTarget(0.16, 20, 0)
-      if (done) {
-        state.y = state.targetY + Math.sin(performance.now() * 0.03) * 7
-      }
-      if (performance.now() > state.actionUntil) finishAction()
-    }
+      const dx = state.targetX - state.x
+      const dy = state.targetY - state.y
 
-    function decideNextAction() {
-      if (state.drag || state.mode === 'slide') return
+      state.facing = dx < 0 ? -1 : 1
+      face()
 
-      const t = performance.now()
+      state.x += clamp(dx * 0.18, -20, 20)
+      state.y += clamp(dy * 0.18, -16, 16)
 
-      if ((state.inputActive || t < state.typingUntil) && isChatOpen()) {
-        if (state.mode !== 'hide-behind-chat' && state.mode !== 'peek-chat' && state.mode !== 'cover-screen') {
-          beginHideBehindChat()
-        }
-        return
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) {
+        state.x = state.targetX
+        state.y = state.targetY + Math.sin(now() * 0.035) * 8
       }
 
-      if (t < state.nextActionAt) return
-      if (Math.random() < 0.72) beginRoam()
-      else beginLaugh('jeje')
-    }
-
-    function bindChatInputReactions() {
-      let current = null
-
-      function onTypingBurst() {
-        state.typingUntil = performance.now() + 1800
-        if (!state.inputActive) state.inputActive = true
-
-        if (isChatOpen()) {
-          if (state.mode !== 'hide-behind-chat' && state.mode !== 'peek-chat') {
-            beginHideBehindChat()
-          } else if (state.mode === 'hide-behind-chat' && Math.random() < 0.12) {
-            beginPeekChat()
-          }
-        }
-      }
-
-      function attach() {
-        const input = findChatInput()
-        if (!input || input === current) return
-
-        current = input
-
-        input.addEventListener('focus', () => {
-          state.inputActive = true
-          state.typingUntil = performance.now() + 1500
-          if (isChatOpen()) beginHideBehindChat()
-        })
-
-        input.addEventListener('blur', () => {
-          state.inputActive = false
-        })
-
-        input.addEventListener('input', onTypingBurst)
-        input.addEventListener('keydown', () => {
-          onTypingBurst()
-          if (Math.random() < 0.02 && state.mode !== 'cover-screen') beginCoverScreen()
-          else if (Math.random() < 0.18 && state.mode === 'hide-behind-chat') beginPeekChat()
-        })
-      }
-
-      attach()
-      setInterval(attach, 1200)
+      if (now() > state.actionUntil) finishAction()
     }
 
     function watchChat() {
       function scan() {
         updateChatRect()
+        refreshPetMask()
       }
 
       const observer = new MutationObserver(scan)
@@ -805,7 +805,7 @@
       setInterval(scan, 700)
       scan()
     }
-
+    
     function loop() {
       decideNextAction()
 
@@ -815,8 +815,8 @@
         slideStep()
       } else if (state.mode === 'roam') {
         roamStep()
-      } else if (state.mode === 'hide-behind-chat') {
-        hideBehindChatStep()
+      } else if (state.mode === 'approach-chat') {
+        approachChatStep()
       } else if (state.mode === 'peek-chat') {
         peekChatStep()
       } else if (state.mode === 'laugh') {
@@ -830,7 +830,8 @@
     }
 
     window.addEventListener('resize', function () {
-      state.x = clamp(state.x, 0, Math.max(0, stage.clientWidth - state.w))
+      const s = stageSize()
+      state.x = clamp(state.x, 0, Math.max(0, s.w - state.w))
       state.y = ground()
       state.hopBaseX = state.x
       applyPos()
@@ -847,10 +848,8 @@
     state.y = ground()
     face()
     applyPos()
-    setPetLayer(true)
     setMode('idle')
     watchChat()
-    bindChatInputReactions()
     loop()
   }
 
