@@ -15,6 +15,14 @@
         -webkit-tap-highlight-color:transparent;
         touch-action:none;
       }
+      #pet-debug-chat{
+        position:fixed;
+        border:2px solid red;
+        background:rgba(255,0,0,.08);
+        pointer-events:none;
+        z-index:2147483644;
+        display:none;
+      }
       #pet-stage{
         position:fixed;
         inset:0;
@@ -196,6 +204,7 @@
       <div class="obstacle" style="left:14%; top:72%; width:120px; height:34px;"></div>
       <div class="obstacle" style="left:44%; top:68%; width:150px; height:38px;"></div>
       <div class="obstacle" style="right:12%; top:72%; width:110px; height:34px;"></div>
+      <div id="pet-debug-chat"></div>
       <div id="pet-float">
         <div class="shadow"></div>
         <div class="wrap">
@@ -246,6 +255,22 @@
       maskRect: null
     }
 
+    function renderChatDebug() {
+      const box = document.getElementById('pet-debug-chat')
+      if (!box) return
+
+      if (!state.chatRect) {
+        box.style.display = 'none'
+        return
+      }
+
+      box.style.display = 'block'
+      box.style.left = state.chatRect.left + 'px'
+      box.style.top = state.chatRect.top + 'px'
+      box.style.width = state.chatRect.width + 'px'
+      box.style.height = state.chatRect.height + 'px'
+    }
+
     function clamp(v, min, max) {
       return Math.max(min, Math.min(max, v))
     }
@@ -283,11 +308,11 @@
     }
 
     function hideBehindChatStep() {
-      const done = moveToTarget(0.16, 18, 6)
+      const done = moveToTarget(0.22, 22, 4)
 
       if (done) {
         state.x = state.targetX
-        state.y = state.targetY + Math.sin(performance.now() * 0.016) * 3
+        state.y = state.targetY + Math.sin(performance.now() * 0.016) * 2
       }
 
       refreshPetMask()
@@ -305,47 +330,39 @@
         return
       }
 
+      const r = state.chatRect
       const px = state.x
-      const py = state.y
       const pw = state.w
+      const py = state.y
       const ph = state.h
 
-      const rx1 = state.chatRect.left
-      const ry1 = state.chatRect.top
-      const rx2 = state.chatRect.right
-      const ry2 = state.chatRect.bottom
+      const chatOnRight = r.left > window.innerWidth * 0.5
 
-      const ix1 = Math.max(px, rx1)
-      const iy1 = Math.max(py, ry1)
-      const ix2 = Math.min(px + pw, rx2)
-      const iy2 = Math.min(py + ph, ry2)
+      if (chatOnRight) {
+        const overlap = (px + pw) - r.left
+        if (overlap <= 0) {
+          pet.style.clipPath = 'none'
+          pet.style.webkitClipPath = 'none'
+          return
+        }
 
-      if (ix2 <= ix1 || iy2 <= iy1) {
+        const hidePct = clamp((overlap / pw) * 100, 0, 92)
+        const visiblePct = 100 - hidePct
+        const polygon = `polygon(0% 0%, ${visiblePct}% 0%, ${visiblePct}% 100%, 0% 100%)`
+        pet.style.clipPath = polygon
+        pet.style.webkitClipPath = polygon
+        return
+      }
+
+      const overlap = r.right - px
+      if (overlap <= 0) {
         pet.style.clipPath = 'none'
         pet.style.webkitClipPath = 'none'
         return
       }
 
-      const left = ((ix1 - px) / pw) * 100
-      const right = ((ix2 - px) / pw) * 100
-      const top = ((iy1 - py) / ph) * 100
-      const bottom = ((iy2 - py) / ph) * 100
-
-      const polygon = `polygon(
-        0% 0%,
-        100% 0%,
-        100% ${top}%,
-        ${right}% ${top}%,
-        ${right}% ${bottom}%,
-        100% ${bottom}%,
-        100% 100%,
-        0% 100%,
-        0% ${bottom}%,
-        ${left}% ${bottom}%,
-        ${left}% ${top}%,
-        0% ${top}%
-      )`
-
+      const hidePct = clamp((overlap / pw) * 100, 0, 92)
+      const polygon = `polygon(${hidePct}% 0%, 100% 0%, 100% 100%, ${hidePct}% 100%)`
       pet.style.clipPath = polygon
       pet.style.webkitClipPath = polygon
     }
@@ -657,13 +674,13 @@
       const r = updateChatRect()
       if (!r) return false
 
-      const side = r.left > window.innerWidth * 0.5 ? 1 : -1
-      const x = side > 0
-        ? r.left + r.width - state.w * 0.18
-        : r.left - state.w * 0.82
+      const chatOnRight = r.left > window.innerWidth * 0.5
 
-      state.targetX = clamp(x, 0, window.innerWidth - state.w)
-      state.targetY = clamp(r.bottom - state.h - 8, 0, ground())
+      state.targetX = chatOnRight
+        ? clamp(r.left - state.w * 0.35, 0, window.innerWidth - state.w)
+        : clamp(r.right - state.w * 0.65, 0, window.innerWidth - state.w)
+
+      state.targetY = clamp(r.bottom - state.h - 6, 0, ground())
       return true
     }
 
@@ -671,12 +688,12 @@
       const r = updateChatRect()
       if (!r) return false
 
-      const side = r.left > window.innerWidth * 0.5 ? 1 : -1
-      const x = side > 0
-        ? r.left - state.w * 0.52
-        : r.right - state.w * 0.48
+      const chatOnRight = r.left > window.innerWidth * 0.5
 
-      state.targetX = clamp(x, 0, window.innerWidth - state.w)
+      state.targetX = chatOnRight
+        ? clamp(r.left - state.w * 0.82, 0, window.innerWidth - state.w)
+        : clamp(r.right - state.w * 0.18, 0, window.innerWidth - state.w)
+
       state.targetY = clamp(r.bottom - state.h - 10, 0, ground())
       return true
     }
@@ -898,8 +915,10 @@
     function watchChat() {
       function scan() {
         updateChatRect()
+        renderChatDebug()
         refreshPetMask()
       }
+    }
 
       const observer = new MutationObserver(scan)
       observer.observe(document.body, { childList: true, subtree: true, attributes: true })
