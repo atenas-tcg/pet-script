@@ -5,220 +5,139 @@
   function boot() {
     if (document.getElementById('pet-stage')) return
 
-    const style = document.createElement('style')
-    style.textContent = `
-      #pet-stage,
-      #pet-stage *{
-        box-sizing:border-box;
-        user-select:none;
-        -webkit-user-select:none;
-        -webkit-tap-highlight-color:transparent;
-        touch-action:none;
-      }
-      #pet-stage{
-        position:fixed;
-        inset:0;
-        width:100vw;
-        height:100vh;
-        overflow:hidden;
-        pointer-events:none;
-        z-index:2147483646;
-        background:transparent;
-      }
-      #pet-float{
-        position:absolute;
-        width:130px;
-        height:150px;
-        left:40px;
-        top:40px;
-        z-index:2147483647;
-        cursor:grab;
-        pointer-events:auto;
-        transform-origin:50% 80%;
-        will-change:left,top,transform;
-      }
-      #pet-float.dragging{cursor:grabbing}
-      #pet-float.face-left{transform:scaleX(-1)}
-      #pet-float .wrap{
-        position:absolute;
-        inset:0;
-        filter:drop-shadow(0 10px 12px rgba(0,0,0,.18));
-        animation:petIdle 2.4s ease-in-out infinite;
-      }
-      #pet-float.dragging .wrap,
-      #pet-float.sliding .wrap{
-        animation:none;
-      }
-      #pet-float .shadow{
-        position:absolute;
-        left:50%;
-        bottom:6px;
-        width:52px;
-        height:12px;
-        transform:translateX(-50%);
-        border-radius:50%;
-        background:rgba(0,0,0,.14);
-        filter:blur(3px);
-        animation:petShadow 2.4s ease-in-out infinite;
-      }
-      #pet-float.dragging .shadow,
-      #pet-float.sliding .shadow{
-        animation:none;
-        opacity:.08;
-      }
-      #pet-float .sprite{
-        position:absolute;
-        inset:0;
-      }
-      #pet-float img{
-        position:absolute;
-        inset:0;
-        width:100%;
-        height:100%;
-        object-fit:contain;
-        pointer-events:none;
-        -webkit-user-drag:none;
-      }
-      #pet-float .idle-img{opacity:1}
-      #pet-float .grab-img{opacity:0}
-      #pet-float.dragging .idle-img,
-      #pet-float.sliding .idle-img{opacity:0}
-      #pet-float.dragging .grab-img,
-      #pet-float.sliding .grab-img{opacity:1}
-      @keyframes petIdle{
-        0%,100%{transform:translateY(0)}
-        50%{transform:translateY(-6px)}
-      }
-      @keyframes petShadow{
-        0%,100%{transform:translateX(-50%) scale(1);opacity:.13}
-        50%{transform:translateX(-50%) scale(.84);opacity:.07}
-      }
-    `
-    document.head.appendChild(style)
+    const idleSrc = 'https://static.wixstatic.com/media/459a71_a633483b6b4c4f5fbc1d70c9e84b11eb~mv2.png'
+    const grabSrc = 'https://static.wixstatic.com/media/459a71_7a648ae60bc14222b55c0616e24c9044~mv2.png'
+    const petWidth = 120
 
     const stage = document.createElement('div')
     stage.id = 'pet-stage'
-    stage.innerHTML = `
-      <div id="pet-float">
-        <div class="shadow"></div>
-        <div class="wrap">
-          <div class="sprite">
-            <img class="idle-img" src="https://static.wixstatic.com/media/459a71_a633483b6b4c4f5fbc1d70c9e84b11eb~mv2.png">
-            <img class="grab-img" src="https://static.wixstatic.com/media/459a71_7a648ae60bc14222b55c0616e24c9044~mv2.png">
-          </div>
-        </div>
-      </div>
-    `
+    Object.assign(stage.style, {
+      position: 'fixed',
+      inset: '0',
+      pointerEvents: 'none',
+      zIndex: '999999'
+    })
+
+    const pet = document.createElement('img')
+    pet.src = idleSrc
+    Object.assign(pet.style, {
+      position: 'absolute',
+      width: petWidth + 'px',
+      left: '60px',
+      top: '60px',
+      cursor: 'grab',
+      pointerEvents: 'auto',
+      transition: 'transform 0.18s, opacity 0.18s'
+    })
+    pet.draggable = false
+
+    stage.appendChild(pet)
     document.body.appendChild(stage)
 
-    const pet = document.getElementById('pet-float')
+    let drag = false
+    let offsetX = 0
+    let offsetY = 0
+    let vx = 0
+    let vy = 0
+    let lastX = 0
+    let lastY = 0
+    let lastTime = 0
 
-    const state = {
-      x: 40,
-      y: 0,
-      w: 130,
-      h: 150,
-      vx: 0,
-      vy: 0,
-      drag: false,
-      mode: 'idle',
-      facing: 1,
-      offsetX: 0,
-      offsetY: 0,
-      lastPointerX: 0,
-      lastPointerY: 0,
-      pointerVX: 0,
-      pointerVY: 0,
-      lastMoveTime: 0,
-      hiddenBehindChat: false,
-      chatRect: null,
-      calmRoamAt: performance.now() + 9000,
-      targetX: 40
+    function point(e) {
+      return e.touches ? e.touches[0] : e
     }
 
     function clamp(v, min, max) {
       return Math.max(min, Math.min(max, v))
     }
 
-    function now() {
-      return performance.now()
+    function start(e) {
+      const p = point(e)
+      const rect = pet.getBoundingClientRect()
+      drag = true
+      offsetX = p.clientX - rect.left
+      offsetY = p.clientY - rect.top
+      vx = 0
+      vy = 0
+      lastX = p.clientX
+      lastY = p.clientY
+      lastTime = performance.now()
+      pet.src = grabSrc
+      pet.style.cursor = 'grabbing'
+      e.preventDefault()
     }
 
-    function point(e) {
-      if (e.touches && e.touches.length) return { x: e.touches[0].clientX, y: e.touches[0].clientY }
-      if (e.changedTouches && e.changedTouches.length) return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY }
-      return { x: e.clientX, y: e.clientY }
+    function move(e) {
+      if (!drag) return
+      const p = point(e)
+      const now = performance.now()
+      const dt = Math.max(8, now - lastTime)
+
+      let x = p.clientX - offsetX
+      let y = p.clientY - offsetY
+
+      x = clamp(x, 0, window.innerWidth - petWidth)
+      y = clamp(y, 0, window.innerHeight - petWidth)
+
+      pet.style.left = x + 'px'
+      pet.style.top = y + 'px'
+
+      const rawVX = ((p.clientX - lastX) / dt) * 16
+      const rawVY = ((p.clientY - lastY) / dt) * 16
+
+      vx = rawVX * 0.4875
+      vy = rawVY * 0.4875
+
+      lastX = p.clientX
+      lastY = p.clientY
+      lastTime = now
+
+      e.preventDefault()
     }
 
-    function ground() {
-      return Math.max(0, window.innerHeight - state.h - 6)
-    }
-
-    function face() {
-      if (state.facing < 0) pet.classList.add('face-left')
-      else pet.classList.remove('face-left')
-    }
-
-    function applyPos() {
-      pet.style.left = state.x + 'px'
-      pet.style.top = state.y + 'px'
-      refreshPetMask()
-    }
-
-    function setMode(mode) {
-      state.mode = mode
-      pet.classList.remove('dragging', 'sliding')
-      if (mode === 'drag') pet.classList.add('dragging')
-      if (mode === 'slide') pet.classList.add('sliding')
+    function end() {
+      if (!drag) return
+      drag = false
+      vx *= 1.5
+      vy *= 1.5
+      pet.src = idleSrc
+      pet.style.cursor = 'grab'
     }
 
     function isVisible(el) {
       if (!el) return false
-      const r = el.getBoundingClientRect()
       const s = getComputedStyle(el)
+      const r = el.getBoundingClientRect()
       return r.width > 20 && r.height > 20 && s.display !== 'none' && s.visibility !== 'hidden' && s.opacity !== '0'
     }
 
-    function scoreChatElement(el) {
-      if (!isVisible(el)) return -1
-      const r = el.getBoundingClientRect()
-      const txt = `${el.id || ''} ${el.className || ''} ${el.getAttribute('aria-label') || ''} ${el.getAttribute('title') || ''} ${el.innerText || ''}`.toLowerCase()
-      let score = 0
-      if (txt.includes('wix chat')) score += 120
-      if (txt.includes('chat')) score += 70
-      if (txt.includes('message')) score += 20
-      if (el.tagName === 'IFRAME') score += 20
-      if (r.right > window.innerWidth * 0.55) score += 20
-      if (r.bottom > window.innerHeight * 0.55) score += 20
-      if (r.width >= 40 && r.width <= 520) score += 10
-      if (r.height >= 40 && r.height <= 900) score += 10
-      return score
-    }
-
-    function findChatElement() {
+    function getChatRect() {
       const selectors = [
         'iframe[title*="chat" i]',
-        'iframe[aria-label*="chat" i]',
         '[aria-label*="wix chat" i]',
         '[aria-label*="chat" i]',
-        '[title*="wix chat" i]',
-        '[title*="chat" i]',
-        '[id*="chat" i]',
-        '[class*="chat" i]',
-        'button',
-        'div',
-        'iframe'
+        '[id*="wix-chat" i]',
+        '[class*="wix-chat" i]'
       ]
 
       let best = null
       let bestScore = -1
 
       for (const selector of selectors) {
-        const list = document.querySelectorAll(selector)
-        for (const el of list) {
-          const score = scoreChatElement(el)
+        const nodes = document.querySelectorAll(selector)
+        for (const el of nodes) {
+          if (!isVisible(el)) continue
+          const r = el.getBoundingClientRect()
+          const txt = `${el.id || ''} ${el.className || ''} ${el.getAttribute('title') || ''} ${el.getAttribute('aria-label') || ''}`.toLowerCase()
+
+          let score = 0
+          if (txt.includes('wix chat')) score += 120
+          if (txt.includes('chat')) score += 60
+          if (el.tagName === 'IFRAME') score += 20
+          if (r.right > window.innerWidth * 0.55) score += 20
+
           if (score > bestScore) {
-            best = el
+            best = r
             bestScore = score
           }
         }
@@ -227,11 +146,73 @@
       return bestScore >= 40 ? best : null
     }
 
-    function updateChatRect() {
-      const el = findChatElement()
-      if (!el) {
-        state.chatRect = null
-        return null
+    function overlapsChat(x, y, chat) {
+      const w = petWidth
+      const h = petWidth
+      return (
+        x < chat.right &&
+        x + w > chat.left &&
+        y < chat.bottom &&
+        y + h > chat.top
+      )
+    }
+
+    function loop() {
+      if (!drag) {
+        vy += 0.195
+        vx *= 0.992
+
+        let x = pet.offsetLeft + vx
+        let y = pet.offsetTop + vy
+
+        const maxX = window.innerWidth - petWidth
+        const maxY = window.innerHeight - petWidth
+
+        if (x < 0) {
+          x = 0
+          vx *= -0.32
+        }
+
+        if (x > maxX) {
+          x = maxX
+          vx *= -0.32
+        }
+
+        if (y > maxY) {
+          y = maxY
+          vy *= -0.26
+        }
+
+        pet.style.left = x + 'px'
+        pet.style.top = y + 'px'
+
+        const chat = getChatRect()
+        if (chat && overlapsChat(x, y, chat)) {
+          pet.style.opacity = '0.55'
+          pet.style.transform = 'scale(0.93)'
+        } else {
+          pet.style.opacity = '1'
+          pet.style.transform = 'scale(1)'
+        }
       }
-      const r = el.getBoundingClientRect()
-      if (r.width < 20 || r
+
+      requestAnimationFrame(loop)
+    }
+
+    pet.addEventListener('mousedown', start)
+    pet.addEventListener('touchstart', start, { passive: false })
+    window.addEventListener('mousemove', move, { passive: false })
+    window.addEventListener('touchmove', move, { passive: false })
+    window.addEventListener('mouseup', end)
+    window.addEventListener('touchend', end)
+    window.addEventListener('touchcancel', end)
+
+    loop()
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot)
+  } else {
+    boot()
+  }
+})()
