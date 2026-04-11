@@ -159,33 +159,39 @@
 
     function loop() {
       if (!drag) {
-        vy += 0.195
-        vx *= 0.992
-
+        vy += 0.18
+        vx *= 0.95
+    
         let x = pet.offsetLeft + vx
         let y = pet.offsetTop + vy
-
+    
         const maxX = window.innerWidth - petWidth
         const maxY = window.innerHeight - petWidth
-
+    
         if (x < 0) {
           x = 0
-          vx *= -0.32
+          vx *= -0.15
         }
-
+    
         if (x > maxX) {
           x = maxX
-          vx *= -0.32
+          vx *= -0.15
         }
-
+    
+        if (y < 0) {
+          y = 0
+          vy *= -0.2
+        }
+    
         if (y > maxY) {
           y = maxY
-          vy *= -0.26
+          vy *= -0.12
+          vx *= 0.92
         }
-
+    
         pet.style.left = x + 'px'
         pet.style.top = y + 'px'
-
+    
         const chat = getChatRect()
         if (chat && overlapsChat(x, y, chat)) {
           stage.style.zIndex = '1'
@@ -195,7 +201,7 @@
           pet.style.transform = 'scale(1)'
         }
       }
-
+    
       requestAnimationFrame(loop)
     }
 
