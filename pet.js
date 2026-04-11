@@ -55,6 +55,8 @@
       #pet-float:hover .wrap{animation:petIdleHopHover .65s ease-in-out infinite}
       #pet-float.sliding .wrap{animation:petSlideFloat .18s linear infinite}
       #pet-float.chatting .wrap{animation:petChatHop .42s linear infinite}
+      #pet-float.hiding .wrap{animation:none}
+      #pet-float.peeking .wrap{animation:petPeekBob 1.3s ease-in-out infinite}
       #pet-float.dragging .wrap{
         animation:none;
         transform:rotate(-5deg) scale(1.02);
@@ -74,6 +76,8 @@
       #pet-float:hover .shadow{animation:petShadowHover .65s ease-in-out infinite}
       #pet-float.sliding .shadow{animation:petShadowSlide .18s linear infinite}
       #pet-float.chatting .shadow{animation:petShadowChat .42s linear infinite}
+      #pet-float.hiding .shadow{animation:none;opacity:.05;transform:translateX(-50%) scale(.62)}
+      #pet-float.peeking .shadow{animation:petShadowPeek 1.3s ease-in-out infinite}
       #pet-float.dragging .shadow{
         animation:none;
         opacity:.08;
@@ -96,9 +100,16 @@
       #pet-float .idle-img{opacity:1}
       #pet-float .grab-img{opacity:0}
       #pet-float.dragging .idle-img,
-      #pet-float.sliding .idle-img{opacity:0}
+      #pet-float.sliding .idle-img,
+      #pet-float.chatting .idle-img{opacity:0}
       #pet-float.dragging .grab-img,
-      #pet-float.sliding .grab-img{opacity:1}
+      #pet-float.sliding .grab-img,
+      #pet-float.chatting .grab-img{opacity:1}
+      #pet-float.hiding .idle-img,
+      #pet-float.peeking .idle-img{opacity:1}
+      #pet-float.hiding .grab-img,
+      #pet-float.peeking .grab-img{opacity:0}
+
       @keyframes petIdleHop{
         0%,100%{transform:translateY(0) scaleX(1) scaleY(1)}
         40%{transform:translateY(-10px) scaleX(.98) scaleY(1.02)}
@@ -119,6 +130,10 @@
         0%,100%{transform:translateY(0)}
         50%{transform:translateY(-12px)}
       }
+      @keyframes petPeekBob{
+        0%,100%{transform:translateY(0)}
+        50%{transform:translateY(-5px)}
+      }
       @keyframes petShadowIdle{
         0%,100%{transform:translateX(-50%) scale(1);opacity:.14}
         50%{transform:translateX(-50%) scale(.8);opacity:.07}
@@ -134,6 +149,10 @@
       @keyframes petShadowChat{
         0%,100%{transform:translateX(-50%) scale(.9);opacity:.1}
         50%{transform:translateX(-50%) scale(.7);opacity:.05}
+      }
+      @keyframes petShadowPeek{
+        0%,100%{transform:translateX(-50%) scale(.68);opacity:.06}
+        50%{transform:translateX(-50%) scale(.6);opacity:.04}
       }
     `
     document.head.appendChild(style)
@@ -182,7 +201,14 @@
       targetX: 0,
       targetY: 0,
       chatDetected: false,
-      nearChat: false
+      nearChat: false,
+      hideAnchorX: 0,
+      hideAnchorY: 0,
+      hideOffset: 58,
+      peekAmount: 26,
+      peekTimer: 0,
+      peekDuration: 0,
+      nextPeekAt: 0
     }
 
     function clamp(v, min, max) {
@@ -215,10 +241,12 @@
 
     function setMode(mode) {
       state.mode = mode
-      pet.classList.remove('sliding', 'dragging', 'chatting')
+      pet.classList.remove('sliding', 'dragging', 'chatting', 'hiding', 'peeking')
       if (mode === 'slide') pet.classList.add('sliding')
       if (mode === 'drag') pet.classList.add('dragging')
       if (mode === 'chat') pet.classList.add('chatting')
+      if (mode === 'hide') pet.classList.add('hiding')
+      if (mode === 'peek') pet.classList.add('peeking')
     }
 
     function getObstacles() {
@@ -437,9 +465,7 @@
       fallback.sort((a, b) => {
         const ar = a.getBoundingClientRect()
         const br = b.getBoundingClientRect()
-        const as = (ar.right + ar.bottom)
-        const bs = (br.right + br.bottom)
-        return bs - as
+        return (br.right + br.bottom) - (ar.right + ar.bottom)
       })
 
       return fallback[0] || null
@@ -464,12 +490,30 @@
       if (r) {
         const x = clamp(r.left + r.width * 0.5 - state.w * 0.5, 0, Math.max(0, window.innerWidth - state.w))
         const y = ground()
-        return { x, y, found: true }
+        return { x, y, rect: r, found: true }
       }
 
       const x = Math.max(0, window.innerWidth - state.w - 24)
       const y = ground()
-      return { x, y, found: false }
+      return { x, y, rect: null, found: false }
+    }
+
+    function beginHideMode() {
+      const t = getChatTarget()
+      const anchorX = t.found && t.rect
+        ? clamp(t.rect.left + t.rect.width - state.w + 22, 0, Math.max(0, window.innerWidth - state.w))
+        : t.x
+
+      state.hideAnchorX = anchorX
+      state.hideAnchorY = ground()
+      state.peekTimer = 0
+      state.peekDuration = 0
+      state.nextPeekAt = performance.now() + 800 + Math.random() * 1400
+      state.facing = 1
+      face()
+      state.x = anchorX + state.hideOffset
+      state.y = state.hideAnchorY
+      setMode('hide')
     }
 
     function goToChat() {
@@ -494,8 +538,7 @@
         state.x = state.targetX
         state.y = ground()
         state.nearChat = true
-        state.facing = 1
-        face()
+        beginHideMode()
         return
       }
 
@@ -510,13 +553,41 @@
       state.y = s.y
     }
 
+    function hideStep(now) {
+      state.facing = 1
+      face()
+      state.x = state.hideAnchorX + state.hideOffset
+      state.y = state.hideAnchorY
+
+      if (now >= state.nextPeekAt) {
+        state.peekDuration = 900 + Math.random() * 900
+        state.peekTimer = now + state.peekDuration
+        setMode('peek')
+      }
+    }
+
+    function peekStep(now) {
+      state.facing = 1
+      face()
+
+      const p = 1 - Math.max(0, (state.peekTimer - now) / state.peekDuration)
+      const wave = Math.sin(p * Math.PI)
+      state.x = state.hideAnchorX + state.hideOffset - state.peekAmount * wave
+      state.y = state.hideAnchorY - Math.sin(now * 0.01) * 2
+
+      if (now >= state.peekTimer) {
+        state.nextPeekAt = now + 1400 + Math.random() * 2200
+        setMode('hide')
+      }
+    }
+
     function watchChat() {
       let lastOpen = false
 
       function scan() {
         const open = isChatOpen()
         if (open && !lastOpen && !state.drag) goToChat()
-        if (!open && lastOpen && state.mode === 'chat') {
+        if (!open && lastOpen && (state.mode === 'chat' || state.mode === 'hide' || state.mode === 'peek')) {
           state.hopBaseX = state.x
           state.hopPhase = 0
           setMode('idle')
@@ -532,7 +603,7 @@
       scan()
     }
 
-    function loop() {
+    function loop(now) {
       if (state.mode === 'idle') {
         idleStep()
         applyPos()
@@ -541,6 +612,12 @@
         applyPos()
       } else if (state.mode === 'chat') {
         chatStep()
+        applyPos()
+      } else if (state.mode === 'hide') {
+        hideStep(now || performance.now())
+        applyPos()
+      } else if (state.mode === 'peek') {
+        peekStep(now || performance.now())
         applyPos()
       }
       requestAnimationFrame(loop)
