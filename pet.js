@@ -913,19 +913,18 @@
     }
 
     function watchChat() {
-      function scan() {
+    function scan() {
         updateChatRect()
         renderChatDebug()
         refreshPetMask()
-      }
     }
 
-      const observer = new MutationObserver(scan)
-      observer.observe(document.body, { childList: true, subtree: true, attributes: true })
-      window.addEventListener('click', () => setTimeout(scan, 160))
-      window.addEventListener('resize', scan)
-      setInterval(scan, 700)
-      scan()
+    const observer = new MutationObserver(scan)
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true })
+    window.addEventListener('click', () => setTimeout(scan, 160))
+    window.addEventListener('resize', scan)
+    setInterval(scan, 700)
+    scan()
     }
 
     function loop() {
