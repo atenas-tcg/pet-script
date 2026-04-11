@@ -5,6 +5,9 @@
   function boot() {
     if (document.getElementById('pet-stage')) return
 
+    const idleSrc = 'https://static.wixstatic.com/media/459a71_a633483b6b4c4f5fbc1d70c9e84b11eb~mv2.png'
+    const grabSrc = 'https://static.wixstatic.com/media/459a71_7a648ae60bc14222b55c0616e24c9044~mv2.png'
+
     const stage = document.createElement('div')
     stage.id = 'pet-stage'
     Object.assign(stage.style, {
@@ -15,7 +18,7 @@
     })
 
     const pet = document.createElement('img')
-    pet.src = 'https://i.imgur.com/4AiXzf8.png'
+    pet.src = idleSrc
     Object.assign(pet.style, {
       position: 'absolute',
       width: '120px',
@@ -33,7 +36,6 @@
     let drag = false
     let offsetX = 0
     let offsetY = 0
-
     let vx = 0
     let vy = 0
 
@@ -45,6 +47,7 @@
       offsetY = p.clientY - rect.top
       vx = 0
       vy = 0
+      pet.src = grabSrc
       pet.style.cursor = 'grabbing'
       e.preventDefault()
     }
@@ -67,13 +70,25 @@
 
     function end() {
       drag = false
+      pet.src = idleSrc
       pet.style.cursor = 'grab'
     }
 
     function getChatRect() {
-      const el = document.querySelector('[class*="chat"], iframe')
-      if (!el) return null
-      return el.getBoundingClientRect()
+      const candidates = [...document.querySelectorAll('iframe, [class*="chat"], [id*="chat"]')]
+      let best = null
+      let bestArea = 0
+
+      for (const el of candidates) {
+        const r = el.getBoundingClientRect()
+        const area = r.width * r.height
+        if (r.width > 40 && r.height > 40 && area > bestArea) {
+          best = r
+          bestArea = area
+        }
+      }
+
+      return best
     }
 
     function loop() {
@@ -87,8 +102,15 @@
         const maxX = window.innerWidth - 120
         const maxY = window.innerHeight - 120
 
-        if (x < 0) { x = 0; vx *= -0.2 }
-        if (x > maxX) { x = maxX; vx *= -0.2 }
+        if (x < 0) {
+          x = 0
+          vx *= -0.2
+        }
+
+        if (x > maxX) {
+          x = maxX
+          vx *= -0.2
+        }
 
         if (y > maxY) {
           y = maxY
