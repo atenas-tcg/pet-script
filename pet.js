@@ -28,7 +28,7 @@
 
         const pet = document.createElement('img')
         pet.id = 'floating-pet'
-        pet.src = 'https://TU-URL-REAL-DE-LA-IMAGEN.png'
+        pet.src = 'https://static.wixstatic.com/media/459a71_a633483b6b4c4f5fbc1d70c9e84b11eb~mv2.png'
         pet.alt = 'pet'
         pet.draggable = false
 
