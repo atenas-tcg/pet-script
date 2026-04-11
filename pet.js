@@ -98,10 +98,64 @@
     function end() {
       if (!drag) return
       drag = false
-      vx *= 1.5
-      vy *= 1.5
-      pet.src = idleSrc
+      vx *= 1.2
+      vy *= 1.2
       pet.style.cursor = 'grab'
+    }
+    
+    function loop() {
+      if (!drag) {
+        vy += 0.19
+        vx *= 0.975
+    
+        let x = pet.offsetLeft + vx
+        let y = pet.offsetTop + vy
+    
+        const maxX = window.innerWidth - petWidth
+        const maxY = window.innerHeight - petWidth
+    
+        if (x < 0) {
+          x = 0
+          vx *= -0.24
+        }
+    
+        if (x > maxX) {
+          x = maxX
+          vx *= -0.24
+        }
+    
+        if (y < 0) {
+          y = 0
+          vy *= -0.22
+        }
+    
+        if (y > maxY) {
+          y = maxY
+          vy *= -0.18
+        }
+    
+        const speed = Math.abs(vx) + Math.abs(vy)
+    
+        if (drag || speed > 2.2) {
+          pet.src = grabSrc
+        } else {
+          pet.src = idleSrc
+        }
+    
+        pet.style.left = x + 'px'
+        pet.style.top = y + 'px'
+    
+        const chat = getChatRect()
+        if (chat && overlapsChat(x, y, chat)) {
+          stage.style.zIndex = '1'
+          pet.style.transform = 'scale(0.93)'
+        } else {
+          stage.style.zIndex = '1000'
+          pet.style.transform = 'scale(1)'
+        }
+      }
+    
+      requestAnimationFrame(loop)
     }
 
     function isVisible(el) {
@@ -155,54 +209,6 @@
         y < chat.bottom &&
         y + h > chat.top
       )
-    }
-
-    function loop() {
-      if (!drag) {
-        vy += 0.18
-        vx *= 0.95
-    
-        let x = pet.offsetLeft + vx
-        let y = pet.offsetTop + vy
-    
-        const maxX = window.innerWidth - petWidth
-        const maxY = window.innerHeight - petWidth
-    
-        if (x < 0) {
-          x = 0
-          vx *= -0.15
-        }
-    
-        if (x > maxX) {
-          x = maxX
-          vx *= -0.15
-        }
-    
-        if (y < 0) {
-          y = 0
-          vy *= -0.2
-        }
-    
-        if (y > maxY) {
-          y = maxY
-          vy *= -0.12
-          vx *= 0.92
-        }
-    
-        pet.style.left = x + 'px'
-        pet.style.top = y + 'px'
-    
-        const chat = getChatRect()
-        if (chat && overlapsChat(x, y, chat)) {
-          stage.style.zIndex = '1'
-          pet.style.transform = 'scale(0.93)'
-        } else {
-          stage.style.zIndex = '1000'
-          pet.style.transform = 'scale(1)'
-        }
-      }
-    
-      requestAnimationFrame(loop)
     }
 
     pet.addEventListener('mousedown', start)
