@@ -188,10 +188,10 @@
 
         const chat = getChatRect()
         if (chat && overlapsChat(x, y, chat)) {
-          pet.style.opacity = '0.55'
+          stage.style.zIndex = '1'
           pet.style.transform = 'scale(0.93)'
         } else {
-          pet.style.opacity = '1'
+          stage.style.zIndex = '1000'
           pet.style.transform = 'scale(1)'
         }
       }
