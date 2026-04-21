@@ -144,7 +144,7 @@
       tail.style.opacity = '0'
     }
 
-    function showBubble(text, duration = 2000) {
+    function showBubble(text, 5000) {
       bubble.innerText = text
       bubble.style.opacity = '1'
       bubble.style.transform = 'translateY(0)'
