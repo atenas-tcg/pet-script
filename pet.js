@@ -404,13 +404,19 @@
     function readCommand() {
       try {
         const raw = localStorage.getItem('medusaCommand')
+        console.log('pet leyendo localStorage:', raw)
+
         if (!raw) return
 
         const command = JSON.parse(raw)
+        console.log('pet comando parseado:', command)
+
         if (!command || !command.id) return
         if (command.id === lastCommandId) return
 
         lastCommandId = command.id
+
+        console.log('pet ejecutando comando:', command.type)
 
         if (command.type === 'say') {
           showBubble(command.text || 'Hola', command.duration || 2000)
