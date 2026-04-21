@@ -5,9 +5,22 @@
   function boot() {
     if (document.getElementById('pet-stage')) return
 
-    const idleSrc = 'https://static.wixstatic.com/media/459a71_a633483b6b4c4f5fbc1d70c9e84b11eb~mv2.png'
-    const grabSrc = 'https://static.wixstatic.com/media/459a71_7a648ae60bc14222b55c0616e24c9044~mv2.png'
-    const petWidth = 120
+    const config = {
+      width: 120,
+      zIndex: 999999,
+      gravity: 0.19,
+      frictionX: 0.975,
+      bounceX: -0.24,
+      bounceTop: -0.22,
+      bounceBottom: -0.18,
+      throwBoost: 1.4,
+      movingThreshold: 2.2,
+      states: {
+        idle: 'https://static.wixstatic.com/media/459a71_a633483b6b4c4f5fbc1d70c9e84b11eb~mv2.png',
+        grab: 'https://static.wixstatic.com/media/459a71_7a648ae60bc14222b55c0616e24c9044~mv2.png',
+        talk: 'https://static.wixstatic.com/media/459a71_a633483b6b4c4f5fbc1d70c9e84b11eb~mv2.png'
+      }
+    }
 
     const stage = document.createElement('div')
     stage.id = 'pet-stage'
@@ -15,14 +28,15 @@
       position: 'fixed',
       inset: '0',
       pointerEvents: 'none',
-      zIndex: '999999'
+      zIndex: String(config.zIndex)
     })
 
     const pet = document.createElement('img')
-    pet.src = idleSrc
+    pet.id = 'pet-character'
+    pet.src = config.states.idle
     Object.assign(pet.style, {
       position: 'absolute',
-      width: petWidth + 'px',
+      width: config.width + 'px',
       left: '60px',
       top: '60px',
       cursor: 'grab',
@@ -42,6 +56,8 @@
     let lastX = 0
     let lastY = 0
     let lastTime = 0
+    let forcedState = null
+    let forcedUntil = 0
 
     function point(e) {
       return e.touches ? e.touches[0] : e
@@ -49,6 +65,25 @@
 
     function clamp(v, min, max) {
       return Math.max(min, Math.min(max, v))
+    }
+
+    function setState(name) {
+      const src = config.states[name]
+      if (!src) return
+      if (pet.dataset.state === name) return
+      pet.dataset.state = name
+      pet.src = src
+    }
+
+    function forceState(name, duration) {
+      forcedState = name
+      forcedUntil = performance.now() + duration
+      setState(name)
+    }
+
+    function clearForcedState() {
+      forcedState = null
+      forcedUntil = 0
     }
 
     function start(e) {
@@ -62,7 +97,8 @@
       lastX = p.clientX
       lastY = p.clientY
       lastTime = performance.now()
-      pet.src = grabSrc
+      clearForcedState()
+      setState('grab')
       pet.style.cursor = 'grabbing'
       e.preventDefault()
     }
@@ -76,8 +112,8 @@
       let x = p.clientX - offsetX
       let y = p.clientY - offsetY
 
-      x = clamp(x, 0, window.innerWidth - petWidth)
-      y = clamp(y, 0, window.innerHeight - petWidth)
+      x = clamp(x, 0, window.innerWidth - config.width)
+      y = clamp(y, 0, window.innerHeight - config.width)
 
       pet.style.left = x + 'px'
       pet.style.top = y + 'px'
@@ -98,53 +134,60 @@
     function end() {
       if (!drag) return
       drag = false
-      vx *= 1.4
-      vy *= 1.4
+      vx *= config.throwBoost
+      vy *= config.throwBoost
       pet.style.cursor = 'grab'
     }
-    
+
     function loop() {
+      const now = performance.now()
+
       if (!drag) {
-        vy += 0.19
-        vx *= 0.975
-    
+        vy += config.gravity
+        vx *= config.frictionX
+
         let x = pet.offsetLeft + vx
         let y = pet.offsetTop + vy
-    
-        const maxX = window.innerWidth - petWidth
-        const maxY = window.innerHeight - petWidth
-    
+
+        const maxX = window.innerWidth - config.width
+        const maxY = window.innerHeight - config.width
+
         if (x < 0) {
           x = 0
-          vx *= -0.24
+          vx *= config.bounceX
         }
-    
+
         if (x > maxX) {
           x = maxX
-          vx *= -0.24
+          vx *= config.bounceX
         }
-    
+
         if (y < 0) {
           y = 0
-          vy *= -0.22
+          vy *= config.bounceTop
         }
-    
+
         if (y > maxY) {
           y = maxY
-          vy *= -0.18
+          vy *= config.bounceBottom
         }
-    
-        const speed = Math.abs(vx) + Math.abs(vy)
-    
-        if (drag || speed > 2.2) {
-          pet.src = grabSrc
-        } else {
-          pet.src = idleSrc
-        }
-    
+
         pet.style.left = x + 'px'
         pet.style.top = y + 'px'
-    
+
+        const speed = Math.abs(vx) + Math.abs(vy)
+
+        if (forcedState && now < forcedUntil) {
+          setState(forcedState)
+        } else {
+          clearForcedState()
+          if (speed > config.movingThreshold) {
+            setState('grab')
+          } else {
+            setState('idle')
+          }
+        }
+
         const chat = getChatRect()
         if (chat && overlapsChat(x, y, chat)) {
           stage.style.zIndex = '1'
@@ -153,8 +196,10 @@
           stage.style.zIndex = '1000'
           pet.style.transform = 'scale(1)'
         }
+      } else {
+        setState('grab')
       }
-    
+
       requestAnimationFrame(loop)
     }
 
@@ -201,8 +246,8 @@
     }
 
     function overlapsChat(x, y, chat) {
-      const w = petWidth
-      const h = petWidth
+      const w = config.width
+      const h = config.width
       return (
         x < chat.right &&
         x + w > chat.left &&
@@ -218,6 +263,37 @@
     window.addEventListener('mouseup', end)
     window.addEventListener('touchend', end)
     window.addEventListener('touchcancel', end)
+
+    window.medusaPet = {
+      talk(duration = 2000) {
+        forceState('talk', duration)
+      },
+      idle() {
+        clearForcedState()
+        setState('idle')
+      },
+      setState(name, duration = 0) {
+        if (!config.states[name]) return
+        if (duration > 0) {
+          forceState(name, duration)
+        } else {
+          clearForcedState()
+          setState(name)
+        }
+      },
+      setImages(states = {}) {
+        config.states = {
+          ...config.states,
+          ...states
+        }
+        if (pet.dataset.state && config.states[pet.dataset.state]) {
+          pet.src = config.states[pet.dataset.state]
+        }
+      },
+      getState() {
+        return pet.dataset.state || 'idle'
+      }
+    }
 
     loop()
   }
