@@ -54,17 +54,15 @@
     bubble.innerText = ''
     Object.assign(bubble.style, {
       position: 'absolute',
-      width: 'max-content',
-      minWidth: '260px',
-      maxWidth: '80vw',
-      maxHeight: '70vh',
-      padding: '20px 24px',
+      maxWidth: '520px',
+      minWidth: '220px',
+      padding: '16px 20px',
       background: 'linear-gradient(135deg,#6a00ff,#9d4edd)',
       color: '#fff',
-      fontSize: '18px',
+      fontSize: '16px',
       fontWeight: '600',
-      lineHeight: '1.6',
-      borderRadius: '20px',
+      lineHeight: '1.45',
+      borderRadius: '16px',
       boxShadow: '0 10px 24px rgba(0,0,0,0.28)',
       pointerEvents: 'none',
       opacity: '0',
@@ -72,8 +70,7 @@
       transition: 'opacity 0.2s, transform 0.2s',
       whiteSpace: 'normal',
       wordBreak: 'break-word',
-      overflowWrap: 'anywhere',
-      overflowY: 'auto'
+      overflowWrap: 'break-word'
     })
 
     const tail = document.createElement('div')
@@ -164,36 +161,30 @@
       const x = pet.offsetLeft
       const y = pet.offsetTop
       const bubbleWidth = bubble.offsetWidth || 420
-      const bubbleHeight = bubble.offsetHeight || 120
-      const margin = 18
-
+      const bubbleHeight = bubble.offsetHeight || 80
+      const margin = 14
+    
       const mouthX = x + config.width * 0.78
       const mouthY = y + config.width * 0.42
-
+    
       let left = mouthX + margin
-      let top = mouthY - bubbleHeight + 24
-      let tailLeft = mouthX + 4
-      let tailTop = mouthY + 4
-
+      let top = mouthY - bubbleHeight + 18
+      let tailLeft = mouthX + 2
+      let tailTop = mouthY + 2
+    
       if (left + bubbleWidth > window.innerWidth - 12) {
         left = x - bubbleWidth - margin
-        tailLeft = left + bubbleWidth - 14
+        tailLeft = left + bubbleWidth - 10
       }
-
-      if (left < 12) {
-        left = 12
-      }
-
-      if (top < 12) {
-        top = 12
-      }
-
+    
+      if (left < 12) left = 12
+      if (top < 12) top = 12
+    
       bubble.style.left = left + 'px'
       bubble.style.top = top + 'px'
       tail.style.left = tailLeft + 'px'
       tail.style.top = tailTop + 'px'
     }
-
     function start(e) {
       const p = point(e)
       const rect = pet.getBoundingClientRect()
