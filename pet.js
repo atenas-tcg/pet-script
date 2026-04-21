@@ -398,7 +398,45 @@
       clearForcedState()
       setState('idle')
     })
-    
+
+    let lastCommandId = ''
+
+    function readCommand() {
+      try {
+        const raw = localStorage.getItem('medusaCommand')
+        if (!raw) return
+
+        const command = JSON.parse(raw)
+        if (!command || !command.id) return
+        if (command.id === lastCommandId) return
+
+        lastCommandId = command.id
+
+        if (command.type === 'say') {
+          showBubble(command.text || 'Hola', command.duration || 2000)
+          forceState('talk', command.duration || 2000)
+        }
+
+        if (command.type === 'state') {
+          if ((command.duration || 0) > 0) {
+            forceState(command.state || 'idle', command.duration || 0)
+          } else {
+            clearForcedState()
+            setState(command.state || 'idle')
+          }
+        }
+
+        if (command.type === 'hide') {
+          hideBubble()
+          clearForcedState()
+          setState('idle')
+        }
+      } catch (error) {
+        console.log('medusa command error', error)
+      }
+    }
+
+    setInterval(readCommand, 250)
     loop()
   }
 
