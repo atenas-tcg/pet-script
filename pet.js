@@ -45,7 +45,28 @@
     })
     pet.draggable = false
 
+    const bubble = document.createElement('div')
+    bubble.id = 'pet-bubble'
+    bubble.innerText = ''
+    Object.assign(bubble.style, {
+      position: 'absolute',
+      maxWidth: '180px',
+      padding: '10px 12px',
+      background: 'linear-gradient(135deg,#6a00ff,#9d4edd)',
+      color: '#fff',
+      fontSize: '13px',
+      lineHeight: '1.35',
+      borderRadius: '12px',
+      boxShadow: '0 8px 20px rgba(0,0,0,0.3)',
+      pointerEvents: 'none',
+      opacity: '0',
+      transform: 'translateY(6px)',
+      transition: 'opacity 0.2s, transform 0.2s',
+      whiteSpace: 'normal'
+    })
+
     stage.appendChild(pet)
+    stage.appendChild(bubble)
     document.body.appendChild(stage)
 
     let drag = false
@@ -58,6 +79,7 @@
     let lastTime = 0
     let forcedState = null
     let forcedUntil = 0
+    let bubbleTimeout = null
 
     function point(e) {
       return e.touches ? e.touches[0] : e
@@ -84,6 +106,47 @@
     function clearForcedState() {
       forcedState = null
       forcedUntil = 0
+    }
+
+    function hideBubble() {
+      bubble.style.opacity = '0'
+      bubble.style.transform = 'translateY(6px)'
+    }
+
+    function showBubble(text, duration = 2000) {
+      bubble.innerText = text
+      bubble.style.opacity = '1'
+      bubble.style.transform = 'translateY(0)'
+
+      if (bubbleTimeout) clearTimeout(bubbleTimeout)
+      bubbleTimeout = setTimeout(() => {
+        hideBubble()
+      }, duration)
+    }
+
+    function updateBubblePosition() {
+      const x = pet.offsetLeft
+      const y = pet.offsetTop
+      const bubbleWidth = bubble.offsetWidth || 180
+      const margin = 10
+
+      let left = x + config.width + margin
+      let top = y - 10
+
+      if (left + bubbleWidth > window.innerWidth - 10) {
+        left = x - bubbleWidth - margin
+      }
+
+      if (left < 10) {
+        left = 10
+      }
+
+      if (top < 10) {
+        top = 10
+      }
+
+      bubble.style.left = left + 'px'
+      bubble.style.top = top + 'px'
     }
 
     function start(e) {
@@ -200,6 +263,7 @@
         setState('grab')
       }
 
+      updateBubblePosition()
       requestAnimationFrame(loop)
     }
 
@@ -265,12 +329,18 @@
     window.addEventListener('touchcancel', end)
 
     window.medusaPet = {
-      talk(duration = 2000) {
+      talk(text = 'Hola', duration = 2000) {
+        showBubble(text, duration)
+        forceState('talk', duration)
+      },
+      say(text = 'Hola', duration = 2000) {
+        showBubble(text, duration)
         forceState('talk', duration)
       },
       idle() {
         clearForcedState()
         setState('idle')
+        hideBubble()
       },
       setState(name, duration = 0) {
         if (!config.states[name]) return
@@ -289,6 +359,12 @@
         if (pet.dataset.state && config.states[pet.dataset.state]) {
           pet.src = config.states[pet.dataset.state]
         }
+      },
+      hideBubble() {
+        hideBubble()
+      },
+      showBubble(text = 'Hola', duration = 2000) {
+        showBubble(text, duration)
       },
       getState() {
         return pet.dataset.state || 'idle'
