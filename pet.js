@@ -54,28 +54,30 @@
     bubble.innerText = ''
     Object.assign(bubble.style, {
       position: 'absolute',
-      maxWidth: '260px',
-      padding: '14px 16px',
+      maxWidth: '420px',
+      minWidth: '260px',
+      padding: '18px 22px',
       background: 'linear-gradient(135deg,#6a00ff,#9d4edd)',
       color: '#fff',
-      fontSize: '16px',
+      fontSize: '18px',
       fontWeight: '600',
-      lineHeight: '1.4',
-      borderRadius: '16px',
+      lineHeight: '1.55',
+      borderRadius: '20px',
       boxShadow: '0 10px 24px rgba(0,0,0,0.28)',
       pointerEvents: 'none',
       opacity: '0',
       transform: 'translateY(8px)',
       transition: 'opacity 0.2s, transform 0.2s',
-      whiteSpace: 'normal'
+      whiteSpace: 'normal',
+      wordBreak: 'break-word'
     })
 
     const tail = document.createElement('div')
     tail.id = 'pet-bubble-tail'
     Object.assign(tail.style, {
       position: 'absolute',
-      width: '18px',
-      height: '18px',
+      width: '22px',
+      height: '22px',
       background: '#7f21ff',
       transform: 'rotate(45deg)',
       opacity: '0',
@@ -157,21 +159,21 @@
     function updateBubblePosition() {
       const x = pet.offsetLeft
       const y = pet.offsetTop
-      const bubbleWidth = bubble.offsetWidth || 260
-      const bubbleHeight = bubble.offsetHeight || 80
-      const margin = 14
+      const bubbleWidth = bubble.offsetWidth || 420
+      const bubbleHeight = bubble.offsetHeight || 120
+      const margin = 18
 
       const mouthX = x + config.width * 0.78
       const mouthY = y + config.width * 0.42
 
       let left = mouthX + margin
-      let top = mouthY - bubbleHeight + 18
-      let tailLeft = mouthX + 2
-      let tailTop = mouthY + 2
+      let top = mouthY - bubbleHeight + 24
+      let tailLeft = mouthX + 4
+      let tailTop = mouthY + 4
 
       if (left + bubbleWidth > window.innerWidth - 12) {
         left = x - bubbleWidth - margin
-        tailLeft = left + bubbleWidth - 10
+        tailLeft = left + bubbleWidth - 14
       }
 
       if (left < 12) {
