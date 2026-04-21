@@ -6,7 +6,7 @@
     if (document.getElementById('pet-stage')) return
 
     const config = {
-      width: 120,
+      width: 144,
       zIndex: 999999,
       gravity: 0.19,
       frictionX: 0.975,
@@ -15,10 +15,12 @@
       bounceBottom: -0.18,
       throwBoost: 1.4,
       movingThreshold: 2.2,
+      idleHopStrength: 0.045,
+      idleHopSpeed: 0.0035,
       states: {
         idle: 'https://static.wixstatic.com/media/459a71_a633483b6b4c4f5fbc1d70c9e84b11eb~mv2.png',
         grab: 'https://static.wixstatic.com/media/459a71_7a648ae60bc14222b55c0616e24c9044~mv2.png',
-        talk: 'https://static.wixstatic.com/media/459a71_a633483b6b4c4f5fbc1d70c9e84b11eb~mv2.png'
+        talk: 'https://static.wixstatic.com/media/459a71_d7c18bbf4db84e4a809358e098098390~mv2.png'
       }
     }
 
@@ -41,7 +43,7 @@
       top: '60px',
       cursor: 'grab',
       pointerEvents: 'auto',
-      transition: 'transform 0.18s, opacity 0.18s'
+      transition: 'opacity 0.18s'
     })
     pet.draggable = false
 
@@ -50,23 +52,37 @@
     bubble.innerText = ''
     Object.assign(bubble.style, {
       position: 'absolute',
-      maxWidth: '180px',
-      padding: '10px 12px',
+      maxWidth: '260px',
+      padding: '14px 16px',
       background: 'linear-gradient(135deg,#6a00ff,#9d4edd)',
       color: '#fff',
-      fontSize: '13px',
-      lineHeight: '1.35',
-      borderRadius: '12px',
-      boxShadow: '0 8px 20px rgba(0,0,0,0.3)',
+      fontSize: '16px',
+      fontWeight: '600',
+      lineHeight: '1.4',
+      borderRadius: '16px',
+      boxShadow: '0 10px 24px rgba(0,0,0,0.28)',
       pointerEvents: 'none',
       opacity: '0',
-      transform: 'translateY(6px)',
+      transform: 'translateY(8px)',
       transition: 'opacity 0.2s, transform 0.2s',
       whiteSpace: 'normal'
     })
 
+    const tail = document.createElement('div')
+    tail.id = 'pet-bubble-tail'
+    Object.assign(tail.style, {
+      position: 'absolute',
+      width: '18px',
+      height: '18px',
+      background: '#7f21ff',
+      transform: 'rotate(45deg)',
+      opacity: '0',
+      transition: 'opacity 0.2s'
+    })
+
     stage.appendChild(pet)
     stage.appendChild(bubble)
+    stage.appendChild(tail)
     document.body.appendChild(stage)
 
     let drag = false
@@ -110,13 +126,15 @@
 
     function hideBubble() {
       bubble.style.opacity = '0'
-      bubble.style.transform = 'translateY(6px)'
+      bubble.style.transform = 'translateY(8px)'
+      tail.style.opacity = '0'
     }
 
     function showBubble(text, duration = 2000) {
       bubble.innerText = text
       bubble.style.opacity = '1'
       bubble.style.transform = 'translateY(0)'
+      tail.style.opacity = '1'
 
       if (bubbleTimeout) clearTimeout(bubbleTimeout)
       bubbleTimeout = setTimeout(() => {
@@ -127,26 +145,35 @@
     function updateBubblePosition() {
       const x = pet.offsetLeft
       const y = pet.offsetTop
-      const bubbleWidth = bubble.offsetWidth || 180
-      const margin = 10
+      const bubbleWidth = bubble.offsetWidth || 260
+      const bubbleHeight = bubble.offsetHeight || 80
+      const margin = 14
 
-      let left = x + config.width + margin
-      let top = y - 10
+      const mouthX = x + config.width * 0.78
+      const mouthY = y + config.width * 0.42
 
-      if (left + bubbleWidth > window.innerWidth - 10) {
+      let left = mouthX + margin
+      let top = mouthY - bubbleHeight + 18
+      let tailLeft = mouthX + 2
+      let tailTop = mouthY + 2
+
+      if (left + bubbleWidth > window.innerWidth - 12) {
         left = x - bubbleWidth - margin
+        tailLeft = left + bubbleWidth - 10
       }
 
-      if (left < 10) {
-        left = 10
+      if (left < 12) {
+        left = 12
       }
 
-      if (top < 10) {
-        top = 10
+      if (top < 12) {
+        top = 12
       }
 
       bubble.style.left = left + 'px'
       bubble.style.top = top + 'px'
+      tail.style.left = tailLeft + 'px'
+      tail.style.top = tailTop + 'px'
     }
 
     function start(e) {
@@ -202,6 +229,19 @@
       pet.style.cursor = 'grab'
     }
 
+    function applyIdleHop(now, speed) {
+      if (drag || speed > 0.6 || forcedState === 'talk') {
+        pet.style.transform = 'translate3d(0,0,0) scale(1)'
+        return
+      }
+
+      const swayX = Math.sin(now * config.idleHopSpeed) * 4
+      const hopY = Math.abs(Math.sin(now * config.idleHopSpeed * 1.35)) * 3.5
+      const tilt = Math.sin(now * config.idleHopSpeed) * 2.2
+
+      pet.style.transform = `translate3d(${swayX}px, ${-hopY}px, 0) rotate(${tilt}deg)`
+    }
+
     function loop() {
       const now = performance.now()
 
@@ -251,73 +291,15 @@
           }
         }
 
-        const chat = getChatRect()
-        if (chat && overlapsChat(x, y, chat)) {
-          stage.style.zIndex = '1'
-          pet.style.transform = 'scale(0.93)'
-        } else {
-          stage.style.zIndex = '1000'
-          pet.style.transform = 'scale(1)'
-        }
+        applyIdleHop(now, speed)
+        stage.style.zIndex = String(config.zIndex)
       } else {
         setState('grab')
+        pet.style.transform = 'translate3d(0,0,0) scale(1)'
       }
 
       updateBubblePosition()
       requestAnimationFrame(loop)
-    }
-
-    function isVisible(el) {
-      if (!el) return false
-      const s = getComputedStyle(el)
-      const r = el.getBoundingClientRect()
-      return r.width > 20 && r.height > 20 && s.display !== 'none' && s.visibility !== 'hidden' && s.opacity !== '0'
-    }
-
-    function getChatRect() {
-      const selectors = [
-        'iframe[title*="chat" i]',
-        '[aria-label*="wix chat" i]',
-        '[aria-label*="chat" i]',
-        '[id*="wix-chat" i]',
-        '[class*="wix-chat" i]'
-      ]
-
-      let best = null
-      let bestScore = -1
-
-      for (const selector of selectors) {
-        const nodes = document.querySelectorAll(selector)
-        for (const el of nodes) {
-          if (!isVisible(el)) continue
-          const r = el.getBoundingClientRect()
-          const txt = `${el.id || ''} ${el.className || ''} ${el.getAttribute('title') || ''} ${el.getAttribute('aria-label') || ''}`.toLowerCase()
-
-          let score = 0
-          if (txt.includes('wix chat')) score += 120
-          if (txt.includes('chat')) score += 60
-          if (el.tagName === 'IFRAME') score += 20
-          if (r.right > window.innerWidth * 0.55) score += 20
-
-          if (score > bestScore) {
-            best = r
-            bestScore = score
-          }
-        }
-      }
-
-      return bestScore >= 40 ? best : null
-    }
-
-    function overlapsChat(x, y, chat) {
-      const w = config.width
-      const h = config.width
-      return (
-        x < chat.right &&
-        x + w > chat.left &&
-        y < chat.bottom &&
-        y + h > chat.top
-      )
     }
 
     pet.addEventListener('mousedown', start)
@@ -369,103 +351,7 @@
       getState() {
         return pet.dataset.state || 'idle'
       }
-      
     }
-
-    document.addEventListener('medusa:say', (event) => {
-      const detail = event.detail || {}
-      const text = detail.text || 'Hola'
-      const duration = detail.duration || 2000
-      showBubble(text, duration)
-      forceState('talk', duration)
-    })
-
-    document.addEventListener('medusa:state', (event) => {
-      const detail = event.detail || {}
-      const state = detail.state || 'idle'
-      const duration = detail.duration || 0
-
-      if (duration > 0) {
-        forceState(state, duration)
-      } else {
-        clearForcedState()
-        setState(state)
-      }
-    })
-
-    document.addEventListener('medusa:hide', () => {
-      hideBubble()
-      clearForcedState()
-      setState('idle')
-    })
-
-    let lastCommandId = ''
-
-    function readCommand() {
-      try {
-        const raw = localStorage.getItem('medusaCommand')
-        console.log('pet leyendo localStorage:', raw)
-
-        if (!raw) return
-
-        const command = JSON.parse(raw)
-        console.log('pet comando parseado:', command)
-
-        if (!command || !command.id) return
-        if (command.id === lastCommandId) return
-
-        lastCommandId = command.id
-
-        console.log('pet ejecutando comando:', command.type)
-
-        if (command.type === 'say') {
-          showBubble(command.text || 'Hola', command.duration || 2000)
-          forceState('talk', command.duration || 2000)
-        }
-
-        if (command.type === 'state') {
-          if ((command.duration || 0) > 0) {
-            forceState(command.state || 'idle', command.duration || 0)
-          } else {
-            clearForcedState()
-            setState(command.state || 'idle')
-          }
-        }
-
-        if (command.type === 'hide') {
-          hideBubble()
-          clearForcedState()
-          setState('idle')
-        }
-      } catch (error) {
-        console.log('medusa command error', error)
-      }
-    }
-
-    window.addEventListener('message', (event) => {
-    const data = event.data || {}
-
-    if (data.type === 'medusa-say') {
-      showBubble(data.text || 'Hola', data.duration || 2000)
-      forceState('talk', data.duration || 2000)
-    }
-
-    if (data.type === 'medusa-state') {
-      if ((data.duration || 0) > 0) {
-        forceState(data.state || 'idle', data.duration || 0)
-      } else {
-        clearForcedState()
-        setState(data.state || 'idle')
-      }
-    }
-
-    if (data.type === 'medusa-hide') {
-      hideBubble()
-      clearForcedState()
-      setState('idle')
-    }
-  })
-    setInterval(readCommand, 250)
 
     window.addEventListener('message', (event) => {
       const data = event.data || {}
@@ -490,6 +376,7 @@
         setState('idle')
       }
     })
+
     loop()
   }
 
