@@ -159,7 +159,7 @@
     function updateBubblePosition() {
       const x = pet.offsetLeft
       const y = pet.offsetTop
-      const bubbleWidth = bubble.offsetWidth || 640
+      const bubbleWidth = bubble.offsetWidth || 260
       const bubbleHeight = bubble.offsetHeight || 120
       const margin = 16
     
