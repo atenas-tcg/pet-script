@@ -6,7 +6,7 @@
     if (document.getElementById('pet-stage')) return
 
     const config = {
-      width: 144,
+      width: 173,
       zIndex: 999999,
       gravity: 0.19,
       frictionX: 0.975,
@@ -15,12 +15,14 @@
       bounceBottom: -0.18,
       throwBoost: 1.4,
       movingThreshold: 2.2,
-      idleHopStrength: 0.045,
-      idleHopSpeed: 0.0035,
+      idleJumpIntervalMin: 900,
+      idleJumpIntervalMax: 1600,
+      idleJumpForceY: -7.2,
+      idleJumpForceX: 3.2,
       states: {
         idle: 'https://static.wixstatic.com/media/459a71_a633483b6b4c4f5fbc1d70c9e84b11eb~mv2.png',
         grab: 'https://static.wixstatic.com/media/459a71_7a648ae60bc14222b55c0616e24c9044~mv2.png',
-        talk: 'https://static.wixstatic.com/media/459a71_d7c18bbf4db84e4a809358e098098390~mv2.png'
+        talk: 'https://static.wixstatic.com/media/459a71_857af6dc0e394fcfb4aa1279536e2a69~mv2.png'
       }
     }
 
@@ -96,6 +98,8 @@
     let forcedState = null
     let forcedUntil = 0
     let bubbleTimeout = null
+    let idleDirection = 1
+    let nextIdleJumpAt = performance.now() + 1200
 
     function point(e) {
       return e.touches ? e.touches[0] : e
@@ -103,6 +107,14 @@
 
     function clamp(v, min, max) {
       return Math.max(min, Math.min(max, v))
+    }
+
+    function rand(min, max) {
+      return Math.random() * (max - min) + min
+    }
+
+    function scheduleNextIdleJump(now) {
+      nextIdleJumpAt = now + rand(config.idleJumpIntervalMin, config.idleJumpIntervalMax)
     }
 
     function setState(name) {
@@ -190,6 +202,7 @@
       clearForcedState()
       setState('grab')
       pet.style.cursor = 'grabbing'
+      pet.style.transform = 'translate3d(0,0,0) scale(1)'
       e.preventDefault()
     }
 
@@ -227,25 +240,40 @@
       vx *= config.throwBoost
       vy *= config.throwBoost
       pet.style.cursor = 'grab'
+      scheduleNextIdleJump(performance.now())
     }
 
-    function applyIdleHop(now, speed) {
-      if (drag || speed > 0.6 || forcedState === 'talk') {
-        pet.style.transform = 'translate3d(0,0,0) scale(1)'
-        return
-      }
+    function maybeDoIdleJump(now) {
+      if (drag) return
+      if (forcedState === 'talk') return
 
-      const swayX = Math.sin(now * config.idleHopSpeed) * 4
-      const hopY = Math.abs(Math.sin(now * config.idleHopSpeed * 1.35)) * 3.5
-      const tilt = Math.sin(now * config.idleHopSpeed) * 2.2
+      const speed = Math.abs(vx) + Math.abs(vy)
+      const onGround = pet.offsetTop >= window.innerHeight - config.width - 1
 
-      pet.style.transform = `translate3d(${swayX}px, ${-hopY}px, 0) rotate(${tilt}deg)`
+      if (!onGround) return
+      if (speed > 0.35) return
+      if (now < nextIdleJumpAt) return
+
+      const x = pet.offsetLeft
+      const maxX = window.innerWidth - config.width
+
+      if (x <= 8) idleDirection = 1
+      if (x >= maxX - 8) idleDirection = -1
+
+      if (Math.random() < 0.18) idleDirection *= -1
+
+      vx = idleDirection * rand(config.idleJumpForceX * 0.75, config.idleJumpForceX * 1.2)
+      vy = config.idleJumpForceY * rand(0.92, 1.08)
+
+      scheduleNextIdleJump(now)
     }
 
     function loop() {
       const now = performance.now()
 
       if (!drag) {
+        maybeDoIdleJump(now)
+
         vy += config.gravity
         vx *= config.frictionX
 
@@ -258,11 +286,13 @@
         if (x < 0) {
           x = 0
           vx *= config.bounceX
+          idleDirection = 1
         }
 
         if (x > maxX) {
           x = maxX
           vx *= config.bounceX
+          idleDirection = -1
         }
 
         if (y < 0) {
@@ -291,7 +321,7 @@
           }
         }
 
-        applyIdleHop(now, speed)
+        pet.style.transform = 'translate3d(0,0,0) scale(1)'
         stage.style.zIndex = String(config.zIndex)
       } else {
         setState('grab')
