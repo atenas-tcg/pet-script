@@ -54,14 +54,14 @@
     bubble.innerText = ''
     Object.assign(bubble.style, {
       position: 'absolute',
-      maxWidth: '640px',
-      minWidth: '320px',
+      maxWidth: '260px',
+      width: 'fit-content',
       padding: '18px 22px',
       background: 'linear-gradient(135deg,#6a00ff,#9d4edd)',
       color: '#fff',
       fontSize: '16px',
       fontWeight: '600',
-      lineHeight: '1.45',
+      lineHeight: '1.4',
       borderRadius: '16px',
       boxShadow: '0 10px 24px rgba(0,0,0,0.28)',
       pointerEvents: 'none',
@@ -70,9 +70,8 @@
       transition: 'opacity 0.2s, transform 0.2s',
       whiteSpace: 'normal',
       wordBreak: 'break-word',
-      overflowWrap: 'break-word'
+      overflowWrap: 'anywhere'
     })
-
     const tail = document.createElement('div')
     tail.id = 'pet-bubble-tail'
     Object.assign(tail.style, {
