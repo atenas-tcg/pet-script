@@ -54,14 +54,16 @@
     bubble.innerText = ''
     Object.assign(bubble.style, {
       position: 'absolute',
-      maxWidth: '420px',
+      width: 'max-content',
       minWidth: '260px',
-      padding: '18px 22px',
+      maxWidth: '80vw',
+      maxHeight: '70vh',
+      padding: '20px 24px',
       background: 'linear-gradient(135deg,#6a00ff,#9d4edd)',
       color: '#fff',
       fontSize: '18px',
       fontWeight: '600',
-      lineHeight: '1.55',
+      lineHeight: '1.6',
       borderRadius: '20px',
       boxShadow: '0 10px 24px rgba(0,0,0,0.28)',
       pointerEvents: 'none',
@@ -69,7 +71,9 @@
       transform: 'translateY(8px)',
       transition: 'opacity 0.2s, transform 0.2s',
       whiteSpace: 'normal',
-      wordBreak: 'break-word'
+      wordBreak: 'break-word',
+      overflowWrap: 'anywhere',
+      overflowY: 'auto'
     })
 
     const tail = document.createElement('div')
