@@ -442,7 +442,54 @@
       }
     }
 
+    window.addEventListener('message', (event) => {
+    const data = event.data || {}
+
+    if (data.type === 'medusa-say') {
+      showBubble(data.text || 'Hola', data.duration || 2000)
+      forceState('talk', data.duration || 2000)
+    }
+
+    if (data.type === 'medusa-state') {
+      if ((data.duration || 0) > 0) {
+        forceState(data.state || 'idle', data.duration || 0)
+      } else {
+        clearForcedState()
+        setState(data.state || 'idle')
+      }
+    }
+
+    if (data.type === 'medusa-hide') {
+      hideBubble()
+      clearForcedState()
+      setState('idle')
+    }
+  })
     setInterval(readCommand, 250)
+
+    window.addEventListener('message', (event) => {
+      const data = event.data || {}
+
+      if (data.type === 'medusa-say') {
+        showBubble(data.text || 'Hola', data.duration || 2000)
+        forceState('talk', data.duration || 2000)
+      }
+
+      if (data.type === 'medusa-state') {
+        if ((data.duration || 0) > 0) {
+          forceState(data.state || 'idle', data.duration || 0)
+        } else {
+          clearForcedState()
+          setState(data.state || 'idle')
+        }
+      }
+
+      if (data.type === 'medusa-hide') {
+        hideBubble()
+        clearForcedState()
+        setState('idle')
+      }
+    })
     loop()
   }
 
