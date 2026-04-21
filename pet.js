@@ -369,8 +369,36 @@
       getState() {
         return pet.dataset.state || 'idle'
       }
+      
     }
 
+    document.addEventListener('medusa:say', (event) => {
+      const detail = event.detail || {}
+      const text = detail.text || 'Hola'
+      const duration = detail.duration || 2000
+      showBubble(text, duration)
+      forceState('talk', duration)
+    })
+
+    document.addEventListener('medusa:state', (event) => {
+      const detail = event.detail || {}
+      const state = detail.state || 'idle'
+      const duration = detail.duration || 0
+
+      if (duration > 0) {
+        forceState(state, duration)
+      } else {
+        clearForcedState()
+        setState(state)
+      }
+    })
+
+    document.addEventListener('medusa:hide', () => {
+      hideBubble()
+      clearForcedState()
+      setState('idle')
+    })
+    
     loop()
   }
 
