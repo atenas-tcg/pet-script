@@ -54,9 +54,9 @@
     bubble.innerText = ''
     Object.assign(bubble.style, {
       position: 'absolute',
-      maxWidth: '520px',
-      minWidth: '220px',
-      padding: '16px 20px',
+      maxWidth: '640px',
+      minWidth: '320px',
+      padding: '18px 22px',
       background: 'linear-gradient(135deg,#6a00ff,#9d4edd)',
       color: '#fff',
       fontSize: '16px',
@@ -160,9 +160,9 @@
     function updateBubblePosition() {
       const x = pet.offsetLeft
       const y = pet.offsetTop
-      const bubbleWidth = bubble.offsetWidth || 420
-      const bubbleHeight = bubble.offsetHeight || 80
-      const margin = 14
+      const bubbleWidth = bubble.offsetWidth || 640
+      const bubbleHeight = bubble.offsetHeight || 120
+      const margin = 16
     
       const mouthX = x + config.width * 0.78
       const mouthY = y + config.width * 0.42
