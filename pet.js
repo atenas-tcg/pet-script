@@ -5,20 +5,22 @@
   function boot() {
     if (document.getElementById('pet-stage')) return
 
+    const isMobile = window.innerWidth <= 768
+
     const config = {
-      width: 173,
+      width: isMobile ? 105 : 173,
       zIndex: 999999,
-      gravity: 0.19,
+      gravity: isMobile ? 0.15 : 0.19,
       frictionX: 0.975,
       bounceX: -0.24,
       bounceTop: -0.22,
       bounceBottom: -0.18,
-      throwBoost: 1.4,
+      throwBoost: isMobile ? 1.15 : 1.4,
       movingThreshold: 2.2,
-      idleJumpIntervalMin: 900,
-      idleJumpIntervalMax: 1600,
-      idleJumpForceY: -7.2,
-      idleJumpForceX: 3.2,
+      idleJumpIntervalMin: isMobile ? 1300 : 900,
+      idleJumpIntervalMax: isMobile ? 2200 : 1600,
+      idleJumpForceY: isMobile ? -5.4 : -7.2,
+      idleJumpForceX: isMobile ? 2.1 : 3.2,
       states: {
         idle: 'https://static.wixstatic.com/media/459a71_a633483b6b4c4f5fbc1d70c9e84b11eb~mv2.png',
         grab: 'https://static.wixstatic.com/media/459a71_7a648ae60bc14222b55c0616e24c9044~mv2.png',
@@ -41,8 +43,8 @@
     Object.assign(pet.style, {
       position: 'absolute',
       width: config.width + 'px',
-      left: '60px',
-      top: '60px',
+      left: isMobile ? '24px' : '60px',
+      top: isMobile ? '90px' : '60px',
       cursor: 'grab',
       pointerEvents: 'auto',
       transition: 'opacity 0.18s'
@@ -54,15 +56,15 @@
     bubble.innerText = ''
     Object.assign(bubble.style, {
       position: 'absolute',
-      maxWidth: '260px',
+      maxWidth: isMobile ? '190px' : '260px',
       width: 'fit-content',
-      padding: '18px 22px',
+      padding: isMobile ? '12px 15px' : '18px 22px',
       background: 'linear-gradient(135deg,#6a00ff,#9d4edd)',
       color: '#fff',
-      fontSize: '16px',
+      fontSize: isMobile ? '13px' : '16px',
       fontWeight: '600',
       lineHeight: '1.4',
-      borderRadius: '16px',
+      borderRadius: isMobile ? '13px' : '16px',
       boxShadow: '0 10px 24px rgba(0,0,0,0.28)',
       pointerEvents: 'none',
       opacity: '0',
@@ -72,12 +74,13 @@
       wordBreak: 'break-word',
       overflowWrap: 'anywhere'
     })
+
     const tail = document.createElement('div')
     tail.id = 'pet-bubble-tail'
     Object.assign(tail.style, {
       position: 'absolute',
-      width: '22px',
-      height: '22px',
+      width: isMobile ? '16px' : '22px',
+      height: isMobile ? '16px' : '22px',
       background: '#7f21ff',
       transform: 'rotate(45deg)',
       opacity: '0',
@@ -151,6 +154,7 @@
       tail.style.opacity = '1'
 
       if (bubbleTimeout) clearTimeout(bubbleTimeout)
+
       bubbleTimeout = setTimeout(() => {
         hideBubble()
       }, duration)
@@ -159,34 +163,36 @@
     function updateBubblePosition() {
       const x = pet.offsetLeft
       const y = pet.offsetTop
-      const bubbleWidth = bubble.offsetWidth || 260
-      const bubbleHeight = bubble.offsetHeight || 120
-      const margin = 16
-    
+      const bubbleWidth = bubble.offsetWidth || (isMobile ? 190 : 260)
+      const bubbleHeight = bubble.offsetHeight || (isMobile ? 90 : 120)
+      const margin = isMobile ? 10 : 16
+
       const mouthX = x + config.width * 0.78
       const mouthY = y + config.width * 0.42
-    
+
       let left = mouthX + margin
       let top = mouthY - bubbleHeight + 18
       let tailLeft = mouthX + 2
       let tailTop = mouthY + 2
-    
+
       if (left + bubbleWidth > window.innerWidth - 12) {
         left = x - bubbleWidth - margin
-        tailLeft = left + bubbleWidth - 10
+        tailLeft = left + bubbleWidth - 8
       }
-    
+
       if (left < 12) left = 12
       if (top < 12) top = 12
-    
+
       bubble.style.left = left + 'px'
       bubble.style.top = top + 'px'
       tail.style.left = tailLeft + 'px'
       tail.style.top = tailTop + 'px'
     }
+
     function start(e) {
       const p = point(e)
       const rect = pet.getBoundingClientRect()
+
       drag = true
       offsetX = p.clientX - rect.left
       offsetY = p.clientY - rect.top
@@ -195,15 +201,19 @@
       lastX = p.clientX
       lastY = p.clientY
       lastTime = performance.now()
+
       clearForcedState()
       setState('grab')
+
       pet.style.cursor = 'grabbing'
       pet.style.transform = 'translate3d(0,0,0) scale(1)'
+
       e.preventDefault()
     }
 
     function move(e) {
       if (!drag) return
+
       const p = point(e)
       const now = performance.now()
       const dt = Math.max(8, now - lastTime)
@@ -232,10 +242,12 @@
 
     function end() {
       if (!drag) return
+
       drag = false
       vx *= config.throwBoost
       vy *= config.throwBoost
       pet.style.cursor = 'grab'
+
       scheduleNextIdleJump(performance.now())
     }
 
@@ -310,6 +322,7 @@
           setState(forcedState)
         } else {
           clearForcedState()
+
           if (speed > config.movingThreshold) {
             setState('grab')
           } else {
@@ -328,10 +341,20 @@
       requestAnimationFrame(loop)
     }
 
+    window.addEventListener('resize', () => {
+      const maxX = window.innerWidth - config.width
+      const maxY = window.innerHeight - config.width
+
+      pet.style.left = clamp(pet.offsetLeft, 0, maxX) + 'px'
+      pet.style.top = clamp(pet.offsetTop, 0, maxY) + 'px'
+    })
+
     pet.addEventListener('mousedown', start)
     pet.addEventListener('touchstart', start, { passive: false })
+
     window.addEventListener('mousemove', move, { passive: false })
     window.addEventListener('touchmove', move, { passive: false })
+
     window.addEventListener('mouseup', end)
     window.addEventListener('touchend', end)
     window.addEventListener('touchcancel', end)
@@ -352,6 +375,7 @@
       },
       setState(name, duration = 0) {
         if (!config.states[name]) return
+
         if (duration > 0) {
           forceState(name, duration)
         } else {
@@ -364,6 +388,7 @@
           ...config.states,
           ...states
         }
+
         if (pet.dataset.state && config.states[pet.dataset.state]) {
           pet.src = config.states[pet.dataset.state]
         }
