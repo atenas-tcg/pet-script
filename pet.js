@@ -9,7 +9,7 @@
 
     const config = {
       width: isMobile ? 58 : 115,
-      zIndex: 99,
+      zIndex: 1,
       gravity: isMobile ? 0.15 : 0.19,
       frictionX: 0.975,
       bounceX: -0.24,
