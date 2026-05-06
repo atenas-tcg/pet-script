@@ -8,7 +8,7 @@
     const isMobile = window.innerWidth <= 768
 
     const config = {
-      width: isMobile ? 52 : 85,
+      width: isMobile ? 26 : 43,
       zIndex: 999999,
       gravity: isMobile ? 0.15 : 0.19,
       frictionX: 0.975,
@@ -43,6 +43,8 @@
     Object.assign(pet.style, {
       position: 'absolute',
       width: config.width + 'px',
+      height: 'auto',
+      maxWidth: 'none',
       left: isMobile ? '24px' : '60px',
       top: isMobile ? '90px' : '60px',
       cursor: 'grab',
@@ -56,16 +58,16 @@
     bubble.innerText = ''
     Object.assign(bubble.style, {
       position: 'absolute',
-      maxWidth: isMobile ? '190px' : '260px',
+      maxWidth: isMobile ? '150px' : '190px',
       width: 'fit-content',
-      padding: isMobile ? '12px 15px' : '18px 22px',
+      padding: isMobile ? '8px 10px' : '11px 14px',
       background: 'linear-gradient(135deg,#6a00ff,#9d4edd)',
       color: '#fff',
-      fontSize: isMobile ? '13px' : '16px',
+      fontSize: isMobile ? '10px' : '12px',
       fontWeight: '600',
-      lineHeight: '1.4',
-      borderRadius: isMobile ? '13px' : '16px',
-      boxShadow: '0 10px 24px rgba(0,0,0,0.28)',
+      lineHeight: '1.35',
+      borderRadius: isMobile ? '9px' : '11px',
+      boxShadow: '0 8px 18px rgba(0,0,0,0.24)',
       pointerEvents: 'none',
       opacity: '0',
       transform: 'translateY(8px)',
@@ -79,8 +81,8 @@
     tail.id = 'pet-bubble-tail'
     Object.assign(tail.style, {
       position: 'absolute',
-      width: isMobile ? '16px' : '22px',
-      height: isMobile ? '16px' : '22px',
+      width: isMobile ? '10px' : '12px',
+      height: isMobile ? '10px' : '12px',
       background: '#7f21ff',
       transform: 'rotate(45deg)',
       opacity: '0',
@@ -163,21 +165,21 @@
     function updateBubblePosition() {
       const x = pet.offsetLeft
       const y = pet.offsetTop
-      const bubbleWidth = bubble.offsetWidth || (isMobile ? 190 : 260)
-      const bubbleHeight = bubble.offsetHeight || (isMobile ? 90 : 120)
-      const margin = isMobile ? 10 : 16
+      const bubbleWidth = bubble.offsetWidth || (isMobile ? 150 : 190)
+      const bubbleHeight = bubble.offsetHeight || (isMobile ? 70 : 90)
+      const margin = isMobile ? 8 : 10
 
       const mouthX = x + config.width * 0.78
       const mouthY = y + config.width * 0.42
 
       let left = mouthX + margin
-      let top = mouthY - bubbleHeight + 18
-      let tailLeft = mouthX + 2
-      let tailTop = mouthY + 2
+      let top = mouthY - bubbleHeight + 12
+      let tailLeft = mouthX + 1
+      let tailTop = mouthY + 1
 
       if (left + bubbleWidth > window.innerWidth - 12) {
         left = x - bubbleWidth - margin
-        tailLeft = left + bubbleWidth - 8
+        tailLeft = left + bubbleWidth - 6
       }
 
       if (left < 12) left = 12
@@ -322,12 +324,7 @@
           setState(forcedState)
         } else {
           clearForcedState()
-
-          if (speed > config.movingThreshold) {
-            setState('grab')
-          } else {
-            setState('idle')
-          }
+          setState(speed > config.movingThreshold ? 'grab' : 'idle')
         }
 
         pet.style.transform = 'translate3d(0,0,0) scale(1)'
@@ -384,10 +381,7 @@
         }
       },
       setImages(states = {}) {
-        config.states = {
-          ...config.states,
-          ...states
-        }
+        config.states = { ...config.states, ...states }
 
         if (pet.dataset.state && config.states[pet.dataset.state]) {
           pet.src = config.states[pet.dataset.state]
