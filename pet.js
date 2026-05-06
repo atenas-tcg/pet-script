@@ -8,7 +8,7 @@
     const isMobile = window.innerWidth <= 768
 
     const config = {
-      width: isMobile ?  40: 70,
+      width: isMobile ? 58 : 115,
       zIndex: 99,
       gravity: isMobile ? 0.15 : 0.19,
       frictionX: 0.975,
